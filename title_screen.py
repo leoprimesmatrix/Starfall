@@ -9,6 +9,7 @@ class TitleScreen:
         self.title_text = None
         self.subtitle_text = None
         self.begin_button = None
+        self.gallery_button = None
         self.exit_button = None
         self.is_visible = False
         self.setup_ui()
@@ -25,6 +26,8 @@ class TitleScreen:
         # Kill old elements if they exist
         if self.begin_button:
             self.begin_button.kill()
+        if self.gallery_button:
+            self.gallery_button.kill()
         if self.exit_button:
             self.exit_button.kill()
 
@@ -48,16 +51,32 @@ class TitleScreen:
         self.subtitle_rect = self.subtitle_text.get_rect(center=(center_x, self.title_rect.bottom + int(10 * scale)))
 
         # Create buttons
+        button_y = self.subtitle_rect.bottom + int(50 * scale)
+        
+        # Begin button
         self.begin_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(center_x - button_width // 2,
-                                    self.subtitle_rect.bottom + int(50 * scale),
+                                    button_y,
                                     button_width, button_height),
             text='Begin Game',
             manager=self.manager
         )
+        
+        # Enemy Gallery button
+        button_y += button_height + button_spacing
+        self.gallery_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(center_x - button_width // 2,
+                                    button_y,
+                                    button_width, button_height),
+            text='Enemy Intelligence',
+            manager=self.manager
+        )
+        
+        # Exit button
+        button_y += button_height + button_spacing
         self.exit_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(center_x - button_width // 2,
-                                    self.begin_button.relative_rect.bottom + button_spacing,
+                                    button_y,
                                     button_width, button_height),
             text='Exit Game',
             manager=self.manager
@@ -72,6 +91,8 @@ class TitleScreen:
     def show(self):
         if self.begin_button:
             self.begin_button.show()
+        if self.gallery_button:
+            self.gallery_button.show()
         if self.exit_button:
             self.exit_button.show()
         self.is_visible = True
@@ -79,6 +100,8 @@ class TitleScreen:
     def hide(self):
         if self.begin_button:
             self.begin_button.hide()
+        if self.gallery_button:
+            self.gallery_button.hide()
         if self.exit_button:
             self.exit_button.hide()
         self.is_visible = False
@@ -98,6 +121,8 @@ class TitleScreen:
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.begin_button:
                 game_state.change_state(STATE_LEVEL_SELECT)
+            elif event.ui_element == self.gallery_button:
+                game_state.change_state(STATE_ENEMY_GALLERY)
             elif event.ui_element == self.exit_button:
                 return False # Signal to quit the game
         return True

@@ -62,6 +62,7 @@ class PlayerShip:
         self.max_shield = PLAYER_SHIELD_MAX  # Maximum shield health
         self.shoot_cooldown = 0
         self.damage_flash_timer = 0
+        self.ship_name = "SF-22 Valiant" # Federation pilot ship name
 
         # Ability specific attributes
         self.active_ability = None
@@ -594,6 +595,7 @@ class BossEnemy:
         self.phase_timer = 0   # Timer for phase transitions
         self.phase_duration = 600  # 10 seconds per phase
         self.flash_timer = 0   # For damage visual
+        self.name = BOSS_NAME  # Kryll Command Carrier
 
     def update(self):
         # Entry sequence

@@ -41,7 +41,7 @@ class PauseScreen:
         # Pause text
         font_size = int(TITLE_FONT_SIZE * scale)
         font = load_font(font_size)
-        self.pause_text = font.render("PAUSED", True, WHITE)
+        self.pause_text = font.render("MISSION PAUSED", True, WHITE)
         self.pause_rect = self.pause_text.get_rect(center=(center_x, center_y - int(100 * scale)))
         
         # Create resume button
@@ -49,16 +49,16 @@ class PauseScreen:
             relative_rect=pygame.Rect(center_x - button_width//2,
                                     self.pause_rect.bottom + int(50 * scale),
                                     button_width, button_height),
-            text="Resume",
+            text="Resume Mission",
             manager=self.manager
         )
         
         # Create quit button
         self.quit_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(center_x - button_width//2,
-                                    self.resume_button.relative_rect.bottom + button_spacing,
-                                    button_width, button_height),
-            text="Quit to Title",
+                                     self.resume_button.relative_rect.bottom + button_spacing,
+                                     button_width, button_height),
+            text="Abort Mission",
             manager=self.manager
         )
 
@@ -94,7 +94,7 @@ class PauseScreen:
         if self.overlay:
             surface.blit(self.overlay, (0, 0))
         
-        # Draw "PAUSED" text
+        # Draw "MISSION PAUSED" text
         if self.pause_text:
             surface.blit(self.pause_text, self.pause_rect)
         

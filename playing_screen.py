@@ -28,6 +28,12 @@ class PlayingScreen:
         self.power_up_spawn_timer = 0
         self.game_over = False
         self.level_complete_timer = -1 # Timer for showing completion message
+        
+        # Notification system
+        self.notification_active = False
+        self.notification_timer = 0
+        self.notification_text = None
+        self.notification_rect = None
 
         self.setup_ui() # Create UI elements
         self.hide()  # Hide UI elements initially
@@ -128,77 +134,149 @@ class PlayingScreen:
     def draw(self, surface, game_state):
         # Draw background
         surface.fill(BLACK) # Fill with black first
-
+        
         # Draw nebula
         self.nebula.draw(surface)
-
+        
         # Draw stars
         for star in self.stars:
             star.draw(surface)
-
-        # Draw game objects
-        for power_up in self.power_ups:
-            power_up.draw(surface)
-        # Draw Boss if it exists
-        if self.boss:
-            self.boss.draw(surface)
-        # Draw regular enemies
-        for enemy in self.enemies:
-            enemy.draw(surface)
-        for projectile in self.enemy_projectiles:
-            projectile.draw(surface)
-        for laser in self.player_lasers:
-            laser.draw(surface)
+        
+        # Draw player
         if self.player:
             self.player.draw(surface)
-
-        # Draw UI (Score, Player Health Bar, Remaining Enemies)
+            
+        # Draw player lasers
+        for laser in self.player_lasers:
+            laser.draw(surface)
+            
+        # Draw enemies
+        for enemy in self.enemies:
+            enemy.draw(surface)
+            
+        # Draw enemy projectiles
+        for projectile in self.enemy_projectiles:
+            projectile.draw(surface)
+            
+        # Draw power-ups
+        for power_up in self.power_ups:
+            power_up.draw(surface)
+            
+        # Draw boss if it exists
+        if self.boss:
+            self.boss.draw(surface)
+            
+        # Draw UI elements
         screen_width = surface.get_width()
         screen_height = surface.get_height()
         scale = get_scale_factor(screen_width, screen_height)
-
-        font_size = int(36 * scale)
-        font = load_font(font_size) # Use helper
-
-        # Score
-        score_text = font.render(f"Score: {self.score}", True, WHITE)
+        
+        # Draw score in top-left
+        score_font_size = int(24 * scale)
+        score_font = load_font(score_font_size)
+        score_text = score_font.render(f"Score: {self.score}", True, WHITE)
         score_rect = score_text.get_rect(topleft=(int(20 * scale), int(20 * scale)))
         surface.blit(score_text, score_rect)
+        
+        # Get pause button area to avoid text overlap
+        pause_button_area_width = self.pause_button.relative_rect.width + int(40 * scale)
+        
+        # Draw current mission name
+        mission_font_size = int(20 * scale)
+        mission_font = load_font(mission_font_size)
+        mission_name = f"Mission: {game_state.current_level} - {list(MISSION_DESCRIPTIONS.values())[game_state.current_level-1].split('.')[0]}"
+        mission_text = mission_font.render(mission_name, True, LIGHT_GRAY)
+        mission_rect = mission_text.get_rect(midtop=(screen_width // 2, int(10 * scale)))
+        surface.blit(mission_text, mission_rect)
+        
+        # Draw ship info if player exists
+        if self.player:
+            ship_font_size = int(16 * scale)
+            ship_font = load_font(ship_font_size)
+            ship_text = ship_font.render(f"Ship: {self.player.ship_name}", True, BLUE)
+            ship_rect = ship_text.get_rect(midbottom=(screen_width // 2, screen_height - int(10 * scale)))
+            surface.blit(ship_text, ship_rect)
+        
+        # Draw remaining enemies
+        if game_state.is_boss_level():
+            remaining_text = score_font.render(f"Defeat the {self.boss.name if self.boss else BOSS_NAME}", True, YELLOW)
+        else:
+            enemies_remaining = game_state.get_enemies_remaining()
+            remaining_text = score_font.render(f"Kryll Forces: {enemies_remaining}", True, YELLOW)
 
-        # Remaining Enemies / Boss Health
+        # Draw remaining enemies / Boss Health
         if game_state.is_boss_level() and self.boss:
-            remaining_text_str = f"Boss Health: {self.boss.health}/{self.boss.max_health}"
+            remaining_text_str = f"{self.boss.name} Health: {self.boss.health}/{self.boss.max_health}"
             remaining_color = RED
         else:
-            remaining = game_state.get_enemies_remaining()
-            remaining_text_str = f"Enemies Remaining: {remaining}"
+            remaining_text_str = f"Enemies Remaining: {enemies_remaining}"
             remaining_color = WHITE
 
-        remaining_text = font.render(remaining_text_str, True, remaining_color)
-        # Calculate position based on pause button area
-        pause_button_area_width = int((PAUSE_BUTTON_WIDTH + PAUSE_BUTTON_MARGIN * 2) * scale)
+        remaining_text = score_font.render(remaining_text_str, True, remaining_color)
         remaining_rect = remaining_text.get_rect(topright=(screen_width - pause_button_area_width, int(20 * scale)))
         surface.blit(remaining_text, remaining_rect)
-
-        # Player health bar is drawn by player.draw()
 
         # Level Completion Message
         if self.level_complete_timer > 0:
             complete_font_size = int(48 * scale)
             complete_font = load_font(complete_font_size) # Use helper
             next_level = game_state.current_level + 1
-            if next_level <= 5:
-                msg = f"Level {game_state.current_level} Complete! Unlocked Level {next_level}!"
-            else:
-                 msg = f"CONGRATULATIONS! Final Boss Defeated!"
-
+            
+            if game_state.is_boss_level():
+                msg = "VICTORY! The Kryll invasion has been repelled."
+                sub_msg = "But Federation intelligence warns... this is only the first wave."
+            elif next_level <= 5:
+                msg = f"Mission {game_state.current_level} Complete!"
+                sub_msg = f"Next mission: {list(MISSION_DESCRIPTIONS.keys())[next_level-1]} - {list(MISSION_DESCRIPTIONS.values())[next_level-1].split('.')[0]}"
+            
             complete_text = complete_font.render(msg, True, YELLOW)
             complete_rect = complete_text.get_rect(center=(screen_width // 2, screen_height // 2))
             surface.blit(complete_text, complete_rect)
+            
+            # Draw subtitle message
+            sub_font_size = int(24 * scale)
+            sub_font = load_font(sub_font_size)
+            sub_text = sub_font.render(sub_msg, True, LIGHT_GRAY)
+            sub_rect = sub_text.get_rect(center=(screen_width // 2, complete_rect.bottom + int(20 * scale)))
+            surface.blit(sub_text, sub_rect)
 
         # Draw damage flash
         if self.player:
             self.player.draw_damage_flash(surface)
+            
+        # Draw notification if active
+        if self.notification_active:
+            # Calculate alpha for fade effect
+            alpha = 255
+            if self.notification_timer < NOTIFICATION_FADE_TIME:
+                alpha = int(255 * (self.notification_timer / NOTIFICATION_FADE_TIME))
+            
+            # Ensure notification text is created
+            if not self.notification_text:
+                notification_font_size = int(20 * scale)
+                notification_font = load_font(notification_font_size)
+                self.notification_text = notification_font.render("Systems Override Ready! (Press O)", True, YELLOW)
+                self.notification_rect = self.notification_text.get_rect(
+                    topright=(screen_width - int(20 * scale), int(60 * scale)))
+            
+            # Create a copy with adjusted alpha
+            text_surface = self.notification_text.copy()
+            # Create a surface with per pixel alpha
+            alpha_surface = pygame.Surface(text_surface.get_size(), pygame.SRCALPHA)
+            # Fill with color and alpha
+            alpha_surface.fill((255, 255, 255, alpha))
+            # Blit using the alpha surface as a mask
+            text_surface.blit(alpha_surface, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            
+            # Draw notification with glow effect for visibility
+            glow_surface = pygame.Surface((self.notification_rect.width + 10, self.notification_rect.height + 10), 
+                                           pygame.SRCALPHA)
+            pygame.draw.rect(glow_surface, (255, 255, 0, min(100, alpha // 2)), 
+                             pygame.Rect(0, 0, glow_surface.get_width(), glow_surface.get_height()), 
+                             border_radius=5)
+            glow_rect = glow_surface.get_rect(center=self.notification_rect.center)
+            surface.blit(glow_surface, glow_rect)
+            surface.blit(text_surface, self.notification_rect)
 
         # Handle game over state (Check added for player existence)
         if self.game_over and self.player and self.player.health <= 0:
@@ -230,6 +308,20 @@ class PlayingScreen:
         for star in self.stars:
             star.update(screen_width, screen_height)
         self.nebula.update(screen_height)
+
+        # Update notification system
+        if game_state.ability_kill_counter >= ABILITY_ENEMY_KILL_THRESHOLD and not self.notification_active:
+            self.notification_active = True
+            self.notification_timer = NOTIFICATION_DURATION
+        
+        if self.notification_active:
+            self.notification_timer -= 1
+            if self.notification_timer <= 0:
+                self.notification_active = False
+                
+        # Reset notification if abilities are not ready
+        if game_state.ability_kill_counter < ABILITY_ENEMY_KILL_THRESHOLD:
+            self.notification_active = False
 
         # Update player (Check added for player existence)
         if self.player:
@@ -394,6 +486,14 @@ class PlayingScreen:
                 if new_lasers:  # Only play sound if lasers were actually created
                     pygame.mixer.Sound.play(game_state.game.shoot_sound)
                 self.player_lasers.extend(new_lasers)
+            elif event.key == pygame.K_o and not self.game_over:
+                # Only open ability selection if abilities are ready
+                if game_state.ability_kill_counter >= ABILITY_ENEMY_KILL_THRESHOLD:
+                    self.hide()
+                    game_state.change_state(STATE_ABILITY_SELECT)
+                    self.notification_active = False
+                    self.notification_timer = 0
+                    return True
         elif event.type == pygame.MOUSEMOTION and not self.game_over:
             # Check for enemy hover
             mouse_x, mouse_y = event.pos

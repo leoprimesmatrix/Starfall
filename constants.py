@@ -27,6 +27,8 @@ STATE_PLAYING = 2
 STATE_PAUSED = 3
 STATE_GAME_OVER = 4
 STATE_ABILITY_SELECT = 5 # New state
+STATE_DEBUG_MENU = 6 # Debug menu state
+STATE_ENEMY_GALLERY = 7 # Enemy gallery screen
 
 # Game settings
 FPS = 60
@@ -35,7 +37,11 @@ PLAYER_HEALTH = 5
 PLAYER_SHIELD_MAX = 7  # Reduced shield health to absorb about 5 bullets
 LASER_COOLDOWN = 15
 POWER_UP_DURATION = 300  # 5 seconds at 60 FPS
-ABILITY_ENEMY_KILL_THRESHOLD = 2 # Enemies to kill before ability select
+ABILITY_ENEMY_KILL_THRESHOLD = 5  # Changed from 2 to 5 enemies needed for ability selection
+
+# Notification settings
+NOTIFICATION_DURATION = 180  # 3 seconds at 60 FPS
+NOTIFICATION_FADE_TIME = 60  # Last second will fade out
 
 # Ability Definitions
 ABILITY_RAPID_FIRE = 'rapid_fire'
@@ -44,18 +50,18 @@ ABILITY_PIERCING = 'piercing'
 
 ABILITIES = {
     ABILITY_RAPID_FIRE: {
-        'name': "Rapid Fire",
-        'description': "Fire twice as fast for 5 seconds.",
+        'name': "Weapons Override",
+        'description': "Overclocks weapon systems for double fire rate (5 sec).",
         'duration': 300 # 5 seconds * 60 FPS
     },
     ABILITY_SHIELD: {
-        'name': "Energy Shield",
-        'description': "Absorbs the next hit.",
+        'name': "Energy Barrier",
+        'description': "Emergency shield generator absorbs one hit.",
         'duration': -1 # Duration not applicable, it's one hit
     },
     ABILITY_PIERCING: {
-        'name': "Piercing Shot",
-        'description': "Lasers pierce enemies for 5 seconds.",
+        'name': "Plasma Infusion",
+        'description': "Modifies laser ammo for target penetration (5 sec).",
         'duration': 300 # 5 seconds * 60 FPS
     }
 }
@@ -64,6 +70,24 @@ ABILITIES = {
 ENEMY_SPAWN_RATE = 60  # Frames between spawns
 ENEMY_TYPES = ["Swarmer", "Striker", "Destroyer", "Harvester", "SporeLauncher"]
 ENEMY_SPAWN_WEIGHTS = [0.4, 0.2, 0.1, 0.2, 0.1]  # Probability weights for each type
+
+# Enemy descriptions for the Kryll invasion theme
+ENEMY_DESCRIPTIONS = {
+    "Swarmer": "Fast Kryll scout unit designed for overwhelming numbers.",
+    "Striker": "Medium Kryll fighter with plasma weaponry.",
+    "Destroyer": "Heavy Kryll warship with devastating firepower.",
+    "Harvester": "Resource collection unit that targets human settlements.",
+    "SporeLauncher": "Biological warfare unit that spreads toxic Kryll spores."
+}
+
+# Mission/Level context for the Shattered Skies storyline
+MISSION_DESCRIPTIONS = {
+    1: "Assist with evacuation of New Haven Colony as the Kryll forces attack. Protect civilian transports.",
+    2: "Defend the vital mining operations on Asteros-7. These resources are critical for the Federation's war effort.",
+    3: "Kryll forces have surrounded the Orbital Research Station. Break through their lines and evacuate scientists.",
+    4: "Secure the supply route from Federation shipyards to the front lines. Kryll ambushes must be neutralized.",
+    5: "The Kryll command ship has been located. This is our chance to strike a decisive blow and halt their invasion."
+}
 
 # Power-up settings
 POWER_UP_SPAWN_RATE = 300  # Frames between spawns
@@ -76,6 +100,7 @@ BOSS_WIDTH = 150
 BOSS_HEIGHT = 100
 BOSS_SHOOT_COOLDOWN_LASER = 90
 BOSS_SHOOT_COOLDOWN_PLASMA = 150
+BOSS_NAME = "Kryll Command Carrier"
 
 # Nebula Colors per Level (RGB, alpha added later)
 # Getting progressively more red/brown
@@ -132,3 +157,6 @@ LEVEL_COLS = 3
 PAUSE_BUTTON_WIDTH = 100
 PAUSE_BUTTON_HEIGHT = 40
 PAUSE_BUTTON_MARGIN = 20
+
+# Debug settings
+DEBUG_MODE = True # Set to False to disable debug features in production

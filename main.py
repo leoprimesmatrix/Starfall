@@ -9,6 +9,8 @@ from playing_screen import PlayingScreen
 from pause_screen import PauseScreen
 from game_over_screen import GameOverScreen
 from ability_selection_screen import AbilitySelectionScreen
+from debug_menu import DebugMenu
+from enemy_gallery import EnemyGallery
 
 class StarfallGame:
     def __init__(self):
@@ -33,6 +35,8 @@ class StarfallGame:
         self.pause_screen = PauseScreen(self.screen, self.manager)
         self.game_over_screen = GameOverScreen(self.screen, self.manager)
         self.ability_selection_screen = AbilitySelectionScreen(self.screen, self.manager)
+        self.debug_menu = DebugMenu(self.screen, self.manager)
+        self.enemy_gallery = EnemyGallery(self.screen, self.manager)
         
         # Show initial screen
         self.title_screen.show()
@@ -45,6 +49,8 @@ class StarfallGame:
         pause_visible = self.game_state.current_state == STATE_PAUSED
         game_over_visible = self.game_state.current_state == STATE_GAME_OVER
         ability_select_visible = self.game_state.current_state == STATE_ABILITY_SELECT
+        debug_menu_visible = self.game_state.current_state == STATE_DEBUG_MENU
+        enemy_gallery_visible = self.game_state.current_state == STATE_ENEMY_GALLERY
         
         # Hide all UI elements before recreating them
         self.title_screen.hide()
@@ -53,6 +59,8 @@ class StarfallGame:
         self.pause_screen.hide()
         self.game_over_screen.hide()
         self.ability_selection_screen.hide()
+        self.debug_menu.hide()
+        self.enemy_gallery.hide()
         
         # Clear all UI elements
         self.manager.clear_and_reset()
@@ -70,6 +78,8 @@ class StarfallGame:
         self.pause_screen.screen = self.screen
         self.game_over_screen.screen = self.screen
         self.ability_selection_screen.screen = self.screen
+        self.debug_menu.screen = self.screen
+        self.enemy_gallery.screen = self.screen
         
         # Recreate UI elements for each screen
         self.title_screen.setup_ui()
@@ -78,6 +88,8 @@ class StarfallGame:
         self.pause_screen.setup_ui()
         self.game_over_screen.setup_ui()
         self.ability_selection_screen.setup_ui()
+        self.debug_menu.setup_ui()
+        self.enemy_gallery.setup_ui()
         
         # Restore visibility states
         if title_visible:
@@ -92,6 +104,10 @@ class StarfallGame:
             self.game_over_screen.show()
         if ability_select_visible:
             self.ability_selection_screen.show()
+        if debug_menu_visible:
+            self.debug_menu.show()
+        if enemy_gallery_visible:
+            self.enemy_gallery.show()
             
     def toggle_fullscreen(self):
         # Store current window state
@@ -125,6 +141,9 @@ class StarfallGame:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F11:
                         self.toggle_fullscreen()
+                    elif event.key == pygame.K_g and DEBUG_MODE and self.game_state.current_state == STATE_PLAYING:
+                        # Toggle debug menu with G key when in playing state
+                        self.game_state.change_state(STATE_DEBUG_MENU)
                     
                 # Pass event to the currently active screen's handler
                 # The player object is needed for ability selection
@@ -153,6 +172,12 @@ class StarfallGame:
                     else:
                          # Should not happen - can't select ability without player
                          self.game_state.change_state(STATE_PLAYING)
+                elif self.game_state.current_state == STATE_DEBUG_MENU:
+                    if not self.debug_menu.handle_event(event, self.game_state, self.playing_screen):
+                        running = False
+                elif self.game_state.current_state == STATE_ENEMY_GALLERY:
+                    if not self.enemy_gallery.handle_event(event, self.game_state):
+                        running = False
 
                 # Always process manager events
                 self.manager.process_events(event)
@@ -166,6 +191,8 @@ class StarfallGame:
                 self.pause_screen.hide()
                 self.game_over_screen.hide()
                 self.ability_selection_screen.hide()
+                self.debug_menu.hide()
+                self.enemy_gallery.hide()
                 
                 # Show only the current screen
                 if self.game_state.current_state == STATE_TITLE:
@@ -174,7 +201,7 @@ class StarfallGame:
                     self.level_select.show()
                 elif self.game_state.current_state == STATE_PLAYING:
                     # Reset is only needed when STARTING a level, not resuming
-                    if last_state != STATE_PAUSED and last_state != STATE_ABILITY_SELECT:
+                    if last_state != STATE_PAUSED and last_state != STATE_ABILITY_SELECT and last_state != STATE_DEBUG_MENU:
                          self.playing_screen.reset(self.game_state)
                     self.playing_screen.show()
                 elif self.game_state.current_state == STATE_PAUSED:
@@ -184,6 +211,11 @@ class StarfallGame:
                 elif self.game_state.current_state == STATE_ABILITY_SELECT:
                      # setup_ui was called above when state change was detected
                     self.ability_selection_screen.show()
+                elif self.game_state.current_state == STATE_DEBUG_MENU:
+                    self.debug_menu.show()
+                elif self.game_state.current_state == STATE_ENEMY_GALLERY:
+                    self.enemy_gallery.show()
+                    self.enemy_gallery.update_enemy_display() # Make sure enemy display is updated
                 last_state = self.game_state.current_state
             
             # Update
@@ -192,11 +224,8 @@ class StarfallGame:
             # Update game state if playing
             if self.game_state.current_state == STATE_PLAYING:
                 self.playing_screen.update(self.game_state)
-                # Check if ability screen should be shown
-                if self.game_state.should_show_ability_select():
-                     self.game_state.change_state(STATE_ABILITY_SELECT)
-                     # Re-setup ability screen to offer new random choices
-                     self.ability_selection_screen.setup_ui()
+                # Don't automatically show ability screen anymore - player must press O key
+                # This section is now handled in PlayingScreen.handle_event
             
             # Draw
             self.screen.fill(BLACK)
@@ -205,7 +234,7 @@ class StarfallGame:
                 self.title_screen.draw(self.screen)
             elif self.game_state.current_state == STATE_LEVEL_SELECT:
                 self.level_select.draw(self.screen, self.game_state)
-            elif self.game_state.current_state in [STATE_PLAYING, STATE_PAUSED, STATE_ABILITY_SELECT]:
+            elif self.game_state.current_state in [STATE_PLAYING, STATE_PAUSED, STATE_ABILITY_SELECT, STATE_DEBUG_MENU]:
                  if self.playing_screen.player: # Check if player exists (after reset)
                     self.playing_screen.draw(self.screen, self.game_state)
             elif self.game_state.current_state == STATE_GAME_OVER:
@@ -213,12 +242,16 @@ class StarfallGame:
                 if self.playing_screen.player:
                     self.playing_screen.draw(self.screen, self.game_state)
                 self.game_over_screen.draw(self.screen, self.game_state)
+            elif self.game_state.current_state == STATE_ENEMY_GALLERY:
+                self.enemy_gallery.draw(self.screen)
             
             # Draw overlays on top
             if self.game_state.current_state == STATE_PAUSED:
                 self.pause_screen.draw(self.screen, self.game_state)
             elif self.game_state.current_state == STATE_ABILITY_SELECT:
                  self.ability_selection_screen.draw(self.screen)
+            elif self.game_state.current_state == STATE_DEBUG_MENU:
+                 self.debug_menu.draw(self.screen)
             
             self.manager.draw_ui(self.screen)
             

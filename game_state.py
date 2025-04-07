@@ -77,9 +77,12 @@ class GameState:
               return self.enemies_defeated_this_level >= target
 
     def should_show_ability_select(self):
-        # Don't show on boss level or if already completed
-        if self.is_boss_level() or self.check_level_complete():
-            return False
+        # This method is kept for backward compatibility but is no longer used
+        # The player now manually opens the ability screen with the 'O' key
+        return False
+
+    def can_use_ability(self):
+        # New method to check if player has enough kills for an ability
         return self.ability_kill_counter >= ABILITY_ENEMY_KILL_THRESHOLD
 
     def reset_ability_counter(self):

@@ -45,7 +45,7 @@ class GameOverScreen:
         # Game Over text
         go_font_size = int(TITLE_FONT_SIZE * scale)
         go_font = load_font(go_font_size)
-        self.game_over_text = go_font.render("GAME OVER", True, RED)
+        self.game_over_text = go_font.render("MISSION FAILED", True, RED)
         self.game_over_rect = self.game_over_text.get_rect(center=(center_x, center_y - int(150 * scale)))
 
         # Score text (needs game_state, will update in draw)
@@ -54,19 +54,19 @@ class GameOverScreen:
         
         # Create play again button
         self.play_again_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(center_x - button_width//2,
-                                    self.score_rect.bottom + int(50 * scale), 
-                                    button_width, button_height),
-            text="Play Again",
+            relative_rect=pygame.Rect(center_x - button_width // 2,
+                                     self.score_rect.bottom + int(80 * scale),
+                                     button_width, button_height),
+            text='Retry Mission',
             manager=self.manager
         )
         
         # Create menu button
         self.menu_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(center_x - button_width//2,
-                                    self.play_again_button.relative_rect.bottom + button_spacing,
-                                    button_width, button_height),
-            text="Main Menu",
+            relative_rect=pygame.Rect(center_x - button_width // 2,
+                                     self.play_again_button.relative_rect.bottom + button_spacing,
+                                     button_width, button_height),
+            text='Return to Command',
             manager=self.manager
         )
 

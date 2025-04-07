@@ -32,7 +32,7 @@ class LevelSelect:
         # Title text
         title_font_size = int(TITLE_FONT_SIZE * scale)
         font = load_font(title_font_size)
-        self.title_text = font.render("SELECT LEVEL", True, WHITE)
+        self.title_text = font.render("SELECT MISSION", True, WHITE)
         self.title_rect = self.title_text.get_rect(centerx=screen_width//2, y=int(50 * scale))
 
         # Calculate scaled dimensions
@@ -49,14 +49,23 @@ class LevelSelect:
         
         # Create level buttons in a grid
         level_num = 1
+        # Mission names corresponding to the new storyline
+        mission_names = [
+            "Evacuation Protocol",
+            "Mining Colony Defense",
+            "Orbital Station Rescue",
+            "Supply Line Protection",
+            "Final Stand"
+        ]
+        
         for row in range(LEVEL_ROWS):
             for col in range(LEVEL_COLS):
-                if level_num <= 5:  # We have 5 levels
+                if level_num <= 5:  # We have 5 levels/missions
                     x = start_x + col * (button_size + spacing)
                     y = start_y + row * (button_size + spacing)
                     button = pygame_gui.elements.UIButton(
                         relative_rect=pygame.Rect(x, y, button_size, button_size),
-                        text=f'Level {level_num}',
+                        text=f'{mission_names[level_num-1]}',
                         manager=self.manager
                     )
                     self.level_buttons.append(button)
