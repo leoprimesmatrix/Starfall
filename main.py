@@ -1,6 +1,7 @@
 import pygame
 import pygame_gui
 import sys
+import math
 from constants import *
 from game_state import GameState
 from title_screen import TitleScreen
@@ -11,6 +12,81 @@ from game_over_screen import GameOverScreen
 from ability_selection_screen import AbilitySelectionScreen
 from debug_menu import DebugMenu
 from enemy_gallery import EnemyGallery
+
+class TransitionSystem:
+    def __init__(self, screen_width, screen_height):
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.is_active = False
+        self.timer = 0
+        self.duration = SCREEN_TRANSITION_DURATION
+        self.transition_type = "fade"  # Default transition type
+        self.from_state = None
+        self.to_state = None
+        self.callback = None
+        
+        # Create fade surface
+        self.fade_surface = pygame.Surface((self.screen_width, self.screen_height))
+        self.fade_surface.fill(BLACK)
+        
+    def start_transition(self, from_state, to_state, transition_type="fade", callback=None):
+        self.is_active = True
+        self.timer = 0
+        self.from_state = from_state
+        self.to_state = to_state
+        self.transition_type = transition_type
+        self.callback = callback
+        
+    def update(self):
+        if not self.is_active:
+            return False
+            
+        self.timer += 1
+        
+        # Check if transition completed
+        if self.timer >= self.duration:
+            self.is_active = False
+            self.timer = 0
+            # Execute callback if provided
+            if self.callback:
+                self.callback()
+            return True
+            
+        return False
+        
+    def draw(self, surface):
+        if not self.is_active:
+            return
+            
+        progress = self.timer / self.duration
+        
+        if self.transition_type == "fade":
+            # First half: fade out, second half: fade in
+            if progress < 0.5:
+                # Fade out (0 to 255)
+                alpha = int(ease_in_out(progress * 2) * 255)
+            else:
+                # Fade in (255 to 0)
+                alpha = int(255 - ease_in_out((progress - 0.5) * 2) * 255)
+                
+            self.fade_surface.set_alpha(alpha)
+            surface.blit(self.fade_surface, (0, 0))
+            
+        elif self.transition_type == "wipe_left":
+            if progress < 0.5:
+                # Wipe from right to left (covering old screen)
+                width = int(self.screen_width * ease_in_out(progress * 2))
+                pygame.draw.rect(surface, BLACK, (self.screen_width - width, 0, width, self.screen_height))
+            else:
+                # Wipe from left to right (revealing new screen)
+                width = int(self.screen_width * (1 - ease_in_out((progress - 0.5) * 2)))
+                pygame.draw.rect(surface, BLACK, (0, 0, width, self.screen_height))
+    
+    def resize(self, new_width, new_height):
+        self.screen_width = new_width
+        self.screen_height = new_height
+        self.fade_surface = pygame.Surface((self.screen_width, self.screen_height))
+        self.fade_surface.fill(BLACK)
 
 class StarfallGame:
     def __init__(self):
@@ -27,6 +103,9 @@ class StarfallGame:
         self.game_state = GameState()
         self.game_state.game = self  # Set reference to this game instance
         self.manager = pygame_gui.UIManager((DEFAULT_WIDTH, DEFAULT_HEIGHT), 'theme.json')
+        
+        # Initialize transition system
+        self.transition = TransitionSystem(DEFAULT_WIDTH, DEFAULT_HEIGHT)
         
         # Initialize screens
         self.title_screen = TitleScreen(self.screen, self.manager)
@@ -67,6 +146,9 @@ class StarfallGame:
         
         # Update screen size
         self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+        
+        # Update transition system
+        self.transition.resize(event.w, event.h)
         
         # Update UI manager
         self.manager.set_window_resolution((event.w, event.h))
@@ -143,7 +225,7 @@ class StarfallGame:
                         self.toggle_fullscreen()
                     elif event.key == pygame.K_g and DEBUG_MODE and self.game_state.current_state == STATE_PLAYING:
                         # Toggle debug menu with G key when in playing state
-                        self.game_state.change_state(STATE_DEBUG_MENU)
+                        self.change_state_with_transition(STATE_DEBUG_MENU)
                     
                 # Pass event to the currently active screen's handler
                 # The player object is needed for ability selection
@@ -182,8 +264,12 @@ class StarfallGame:
                 # Always process manager events
                 self.manager.process_events(event)
             
-            # Handle state changes
-            if last_state != self.game_state.current_state:
+            # Update transition system
+            transition_complete = self.transition.update()
+            
+            # Only change screen visibility if not transitioning
+            if last_state != self.game_state.current_state and not self.transition.is_active:
+                # Handle state changes
                 # Hide all screens first
                 self.title_screen.hide()
                 self.level_select.hide()
@@ -216,16 +302,23 @@ class StarfallGame:
                 elif self.game_state.current_state == STATE_ENEMY_GALLERY:
                     self.enemy_gallery.show()
                     self.enemy_gallery.update_enemy_display() # Make sure enemy display is updated
+                
                 last_state = self.game_state.current_state
-            
-            # Update
-            self.manager.update(time_delta)
-            
+
             # Update game state if playing
             if self.game_state.current_state == STATE_PLAYING:
                 self.playing_screen.update(self.game_state)
                 # Don't automatically show ability screen anymore - player must press O key
                 # This section is now handled in PlayingScreen.handle_event
+            
+            # Update UI manager
+            self.manager.update(time_delta)
+            
+            # Update animations
+            if self.game_state.current_state == STATE_TITLE:
+                self.title_screen.update_animation()
+            elif self.game_state.current_state == STATE_LEVEL_SELECT:
+                self.level_select.update_animation()
             
             # Draw
             self.screen.fill(BLACK)
@@ -252,13 +345,35 @@ class StarfallGame:
                  self.ability_selection_screen.draw(self.screen)
             elif self.game_state.current_state == STATE_DEBUG_MENU:
                  self.debug_menu.draw(self.screen)
+                 
+            # Draw transition effect on top of everything
+            self.transition.draw(self.screen)
             
             self.manager.draw_ui(self.screen)
-            
             pygame.display.flip()
-            
+        
         pygame.quit()
         sys.exit()
+
+    def change_state_with_transition(self, new_state, transition_type="fade"):
+        """Change game state with a smooth transition animation"""
+        current_state = self.game_state.current_state
+        
+        # Don't transition if we're already transitioning
+        if self.transition.is_active:
+            return
+            
+        # Define a callback function to change the state after the transition
+        def change_state_after_transition():
+            self.game_state.change_state(new_state)
+        
+        # Start the transition
+        self.transition.start_transition(
+            current_state,
+            new_state,
+            transition_type=transition_type,
+            callback=change_state_after_transition
+        )
 
 if __name__ == "__main__":
     game = StarfallGame()

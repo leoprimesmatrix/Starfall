@@ -1,5 +1,7 @@
 import pygame
 import pygame_gui
+import random
+import math
 from constants import *
 
 class TitleScreen:
@@ -12,8 +14,41 @@ class TitleScreen:
         self.gallery_button = None
         self.exit_button = None
         self.is_visible = False
+        
+        # Animation properties
+        self.title_scale = 1.0
+        self.title_direction = 0.001
+        self.title_max_scale = 1.05
+        self.title_min_scale = 0.95
+        
+        # Star particles for animation
+        self.stars = []
+        self.setup_stars()
+        
         self.setup_ui()
         self.hide() # Hide UI elements initially
+        
+    def setup_stars(self):
+        # Create animated stars in the background
+        self.stars = []
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+        
+        for _ in range(50):
+            x = random.randint(0, screen_width)
+            y = random.randint(0, screen_height)
+            size = random.uniform(0.5, 3)
+            speed = random.uniform(0.2, 1.0)
+            pulse_speed = random.uniform(0.02, 0.05)
+            self.stars.append({
+                'x': x,
+                'y': y,
+                'size': size,
+                'base_size': size,
+                'speed': speed,
+                'pulse': 0,
+                'pulse_speed': pulse_speed
+            })
 
     def setup_ui(self):
         screen_width = self.screen.get_width()
@@ -81,12 +116,47 @@ class TitleScreen:
             text='Exit Game',
             manager=self.manager
         )
+        
+        # Setup star animations again for the new size
+        self.setup_stars()
 
         # Restore visibility state
         if was_visible:
             self.show()
         else:
             self.hide()
+
+    def update_animation(self):
+        if not self.is_visible:
+            return
+            
+        # Animate title scale
+        self.title_scale += self.title_direction
+        if self.title_scale > self.title_max_scale:
+            self.title_scale = self.title_max_scale
+            self.title_direction = -abs(self.title_direction)
+        elif self.title_scale < self.title_min_scale:
+            self.title_scale = self.title_min_scale
+            self.title_direction = abs(self.title_direction)
+            
+        # Animate background stars
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+        
+        for star in self.stars:
+            # Move stars slowly upward
+            star['y'] -= star['speed']
+            if star['y'] < 0:
+                star['y'] = screen_height
+                star['x'] = random.randint(0, screen_width)
+                
+            # Make stars pulse
+            star['pulse'] += star['pulse_speed']
+            if star['pulse'] > 2 * math.pi:
+                star['pulse'] -= 2 * math.pi
+                
+            # Calculate current size based on pulse
+            star['size'] = star['base_size'] * (1 + 0.3 * math.sin(star['pulse']))
 
     def show(self):
         if self.begin_button:
@@ -109,20 +179,54 @@ class TitleScreen:
     def draw(self, surface):
         if not self.is_visible:
              return
-        # Draw text
+             
+        # Draw animated background stars
+        for star in self.stars:
+            pygame.draw.circle(
+                surface, 
+                WHITE, 
+                (int(star['x']), int(star['y'])), 
+                star['size']
+            )
+             
+        # Draw animated title text with pulsing scale
         if self.title_text:
-             surface.blit(self.title_text, self.title_rect)
+            # Create scaled version of the title
+            scaled_width = int(self.title_text.get_width() * self.title_scale)
+            scaled_height = int(self.title_text.get_height() * self.title_scale)
+            scaled_title = pygame.transform.scale(self.title_text, (scaled_width, scaled_height))
+            
+            # Update the rect to center the scaled title
+            scaled_rect = scaled_title.get_rect(center=self.title_rect.center)
+            surface.blit(scaled_title, scaled_rect)
+        
+        # Draw subtitle with glow effect
         if self.subtitle_text:
-             surface.blit(self.subtitle_text, self.subtitle_rect)
+            # Draw a subtle glow around the subtitle
+            glow_surf = pygame.Surface((self.subtitle_text.get_width() + 10, self.subtitle_text.get_height() + 10), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, (100, 100, 200, 20), glow_surf.get_rect(), border_radius=5)
+            glow_rect = glow_surf.get_rect(center=self.subtitle_rect.center)
+            surface.blit(glow_surf, glow_rect)
+            
+            # Draw the actual subtitle
+            surface.blit(self.subtitle_text, self.subtitle_rect)
 
     def handle_event(self, event, game_state):
         if not self.is_visible:
             return True
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.begin_button:
-                game_state.change_state(STATE_LEVEL_SELECT)
+                # Use transition when changing to level select
+                if hasattr(game_state.game, 'change_state_with_transition'):
+                    game_state.game.change_state_with_transition(STATE_LEVEL_SELECT)
+                else:
+                    game_state.change_state(STATE_LEVEL_SELECT)
             elif event.ui_element == self.gallery_button:
-                game_state.change_state(STATE_ENEMY_GALLERY)
+                # Use transition for enemy gallery
+                if hasattr(game_state.game, 'change_state_with_transition'):
+                    game_state.game.change_state_with_transition(STATE_ENEMY_GALLERY, "wipe_left")
+                else:
+                    game_state.change_state(STATE_ENEMY_GALLERY)
             elif event.ui_element == self.exit_button:
                 return False # Signal to quit the game
         return True

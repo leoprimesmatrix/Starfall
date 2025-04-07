@@ -19,6 +19,7 @@ PURPLE = (128, 0, 128)
 GRAY = (128, 128, 128)
 LIGHT_GRAY = (192, 192, 192)
 DARK_GRAY = (64, 64, 64)
+ORANGE = (255, 165, 0)
 
 # Game states
 STATE_TITLE = 0
@@ -160,3 +161,18 @@ PAUSE_BUTTON_MARGIN = 20
 
 # Debug settings
 DEBUG_MODE = True # Set to False to disable debug features in production
+
+# Animation and transition settings
+FADE_DURATION = 30  # Frames for fade transitions
+SCREEN_TRANSITION_DURATION = 45  # Frames for screen transitions
+BUTTON_HOVER_ALPHA = 40  # Alpha value for button hover effect
+ANIMATION_ENABLED = True  # Can be toggled for performance
+
+# Animation curves
+def ease_in_out(t):
+    """Smooth ease-in/ease-out function for animations. Input and output are 0.0 to 1.0."""
+    return t * t * (3.0 - 2.0 * t)
+
+def ease_out(t):
+    """Ease-out function for animations. Input and output are 0.0 to 1.0."""
+    return 1.0 - (1.0 - t) * (1.0 - t)

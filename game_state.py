@@ -34,6 +34,11 @@ class GameState:
     def is_level_unlocked(self, level):
         return self.level_unlocks.get(level, False)
         
+    def is_level_available(self, level):
+        # This method is used by the level selection screen
+        # A level is available if it's unlocked
+        return self.is_level_unlocked(level)
+        
     def complete_current_level(self):
         next_level = self.current_level + 1
         if next_level <= 5: # Check bounds
@@ -87,3 +92,23 @@ class GameState:
 
     def reset_ability_counter(self):
         self.ability_kill_counter = 0
+
+    def set_current_level(self, level):
+        # Set the current level if it's a valid level number and is available
+        if 1 <= level <= 5 and self.is_level_available(level):
+            self.current_level = level
+            # Reset level-specific counters when changing levels
+            self.enemies_defeated_this_level = 0
+            self.ability_kill_counter = 0
+            
+    def get_max_enemies(self):
+        # Return the maximum number of enemies that can be on the screen at once
+        # This can be adjusted based on the current level difficulty
+        if self.is_boss_level():
+            return 1  # Only the boss should be present
+        else:
+            # Base number of max enemies, can be adjusted by level
+            base_max = 5
+            # Increase max enemies for higher levels
+            level_bonus = min(3, self.current_level - 1)  # Up to +3 enemies for higher levels
+            return base_max + level_bonus

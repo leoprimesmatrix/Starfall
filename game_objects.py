@@ -248,12 +248,32 @@ class Laser:
         self.piercing = piercing
         
     def update(self):
-        rad_angle = math.radians(self.angle)
-        self.x += math.cos(rad_angle) * self.speed
-        self.y += math.sin(rad_angle) * self.speed
+        # Calculate movement based on angle
+        angle_rad = math.radians(self.angle)
+        dx = math.cos(angle_rad) * self.speed  # Standard calculation for X
+        dy = math.sin(angle_rad) * self.speed  # Standard calculation for Y (Pygame: +y is down)
+        
+        self.x += dx
+        self.y += dy
         
     def draw(self, surface):
-        pygame.draw.line(surface, WHITE, (self.x, self.y), (self.x, self.y - 10), 2)
+        # Player lasers (angle -90) should draw vertically upward
+        # Other projectiles should follow their angle
+        
+        # Calculate endpoint based on angle - SAME calculation as in update()
+        angle_rad = math.radians(self.angle)
+        dx = math.cos(angle_rad) * 10  # Length of 10 pixels
+        dy = math.sin(angle_rad) * 10
+        
+        end_x = self.x + dx
+        end_y = self.y + dy
+        
+        # Draw the laser as a line from current position to calculated endpoint
+        pygame.draw.line(surface, WHITE, (self.x, self.y), (end_x, end_y), 2)
+        
+        # Add a small glow effect if this is a piercing laser
+        if self.piercing:
+            pygame.draw.circle(surface, (100, 100, 255, 150), (int(self.x), int(self.y)), 3)
         
     def is_off_screen(self, screen_height):
         # Only need to check top boundary for player lasers
@@ -438,37 +458,48 @@ class Enemy:
 
     def shoot(self):
         if self.shoot_cooldown <= 0:
+            # Default angle for enemies shooting down
+            shoot_angle = 90 
+            
             if self.type == "Swarmer":
                 self.shoot_cooldown = 60
-                return [EnemyProjectile(self.x, self.y, "small")]
+                # Pass angle (90) and type ("small") correctly
+                return [EnemyProjectile(self.x, self.y, shoot_angle, "small")]
             elif self.type == "Striker":
                 self.shoot_cooldown = 90
-                return [EnemyProjectile(self.x, self.y, "plasma")]
+                 # Pass angle (90) and type ("plasma") correctly
+                return [EnemyProjectile(self.x, self.y, shoot_angle, "plasma")]
             elif self.type == "Destroyer":
                 self.shoot_cooldown = 120
+                # Pass angle (90) and type ("laser") correctly
                 return [
-                    EnemyProjectile(self.x - 20, self.y, "laser"),
-                    EnemyProjectile(self.x + 20, self.y, "laser")
+                    EnemyProjectile(self.x - 20, self.y, shoot_angle, "laser"),
+                    EnemyProjectile(self.x + 20, self.y, shoot_angle, "laser")
                 ]
             elif self.type == "Harvester":
+                 # NOTE: Harvester might deploy drones instead of shooting? 
+                 # For now, assume it shoots 'small' projectiles downwards.
                 self.shoot_cooldown = 150
-                return [EnemyProjectile(self.x, self.y, "small")]
+                return [EnemyProjectile(self.x, self.y, shoot_angle, "small")]
             elif self.type == "SporeLauncher":
                 self.shoot_cooldown = 180
-                return [EnemyProjectile(self.x, self.y, "spore")]
+                 # Pass angle (90) and type ("spore") correctly
+                return [EnemyProjectile(self.x, self.y, shoot_angle, "spore")]
         self.shoot_cooldown -= 1
         return []
 
 class EnemyProjectile:
-    def __init__(self, x, y, projectile_type):
+    def __init__(self, x, y, angle, projectile_type, damage=None, speed=None, width=None, height=None, health=None):
         self.x = x
         self.y = y
         self.type = projectile_type
-        self.speed = self.get_speed()
-        self.damage = self.get_damage()
-        self.width = int(self.get_width() * 1.25)  # Increased size by 25%
-        self.height = int(self.get_height() * 1.25)  # Increased size by 25%
-        self.health = self.get_health()
+        self.angle = angle
+        # Use provided values or get defaults
+        self.speed = speed if speed is not None else self.get_speed()
+        self.damage = damage if damage is not None else self.get_damage()
+        self.width = int(width if width is not None else self.get_width() * 1.25)  # Increased size by 25%
+        self.height = int(height if height is not None else self.get_height() * 1.25)  # Increased size by 25%
+        self.health = health if health is not None else self.get_health()
         self.max_health = self.health
         self.show_health_bar = False
         self.health_bar_width = 20
@@ -483,6 +514,8 @@ class EnemyProjectile:
             return 1
         elif self.type == "spore":
             return 1
+        elif self.type == "bullet":  # Add new projectile type
+            return 1
             
     def get_speed(self):
         if self.type == "small":
@@ -493,6 +526,8 @@ class EnemyProjectile:
             return 7
         elif self.type == "spore":
             return 2
+        elif self.type == "bullet":  # Add new projectile type
+            return 4
             
     def get_damage(self):
         if self.type == "small":
@@ -502,6 +537,8 @@ class EnemyProjectile:
         elif self.type == "laser":
             return 1
         elif self.type == "spore":
+            return 1
+        elif self.type == "bullet":  # Add new projectile type
             return 1
             
     def get_width(self):
@@ -513,6 +550,8 @@ class EnemyProjectile:
             return 3
         elif self.type == "spore":
             return 6
+        elif self.type == "bullet":  # Add new projectile type
+            return 5
             
     def get_height(self):
         if self.type == "small":
@@ -523,11 +562,21 @@ class EnemyProjectile:
             return 15
         elif self.type == "spore":
             return 6
+        elif self.type == "bullet":  # Add new projectile type
+            return 5
             
     def update(self):
-        self.y += self.speed
+        # Calculate movement based on angle
+        angle_rad = math.radians(self.angle)
+        dx = math.cos(angle_rad) * self.speed  # Standard calculation for X
+        dy = math.sin(angle_rad) * self.speed  # Standard calculation for Y (Pygame: +y is down)
+        
+        self.x += dx
+        self.y += dy
+        
+        # Special movement for spore type
         if self.type == "spore":
-            self.x += math.sin(self.y * 0.1) * 2  # Arc movement
+            self.x += math.sin(self.y * 0.1) * 2  # Additional arc movement
             
     def take_damage(self, amount):
         self.health -= amount
@@ -542,6 +591,8 @@ class EnemyProjectile:
             pygame.draw.line(surface, PURPLE, (self.x, self.y), (self.x, self.y - self.height), 2)
         elif self.type == "spore":
             pygame.draw.circle(surface, GREEN, (int(self.x), int(self.y)), self.width//2)
+        elif self.type == "bullet":
+            pygame.draw.circle(surface, ORANGE, (int(self.x), int(self.y)), self.width//2)
             
         # Draw health bar if active
         if self.show_health_bar:
@@ -663,7 +714,7 @@ class BossEnemy:
                 self.shoot_cooldown_laser = int(BOSS_SHOOT_COOLDOWN_LASER * cooldown_multiplier)
                 # Fire multiple lasers
                 for offset in [-self.width//4, 0, self.width//4]:
-                    projectiles.append(EnemyProjectile(self.x + offset, self.y + self.height//2, "laser"))
+                    projectiles.append(EnemyProjectile(self.x + offset, self.y + self.height//2, 90, "laser"))
 
         # Phase 2: Add plasma attacks
         if self.attack_phase >= 2:
@@ -675,12 +726,12 @@ class BossEnemy:
                 
                 self.shoot_cooldown_plasma = int(BOSS_SHOOT_COOLDOWN_PLASMA * cooldown_multiplier)
                 # Fire plasma
-                projectiles.append(EnemyProjectile(self.x, self.y + self.height//2, "plasma"))
+                projectiles.append(EnemyProjectile(self.x, self.y + self.height//2, 90, "plasma"))
                 
                 # Add side shots in later phases
                 if self.attack_phase == 3:
-                    projectiles.append(EnemyProjectile(self.x - self.width//3, self.y + self.height//3, "plasma"))
-                    projectiles.append(EnemyProjectile(self.x + self.width//3, self.y + self.height//3, "plasma"))
+                    projectiles.append(EnemyProjectile(self.x - self.width//3, self.y + self.height//3, 90, "plasma"))
+                    projectiles.append(EnemyProjectile(self.x + self.width//3, self.y + self.height//3, 90, "plasma"))
 
         # Phase 3: Add spread attack
         if self.attack_phase == 3:
@@ -692,8 +743,7 @@ class BossEnemy:
                     angle = (i / num_projectiles) * 180  # Spread in semicircle down
                     rad_angle = math.radians(angle)
                     offset_x = math.cos(rad_angle) * 30
-                    projectile = EnemyProjectile(self.x + offset_x, self.y + self.height//2, "small")
-                    projectile.angle = angle - 90  # Adjust angle to point downward
+                    projectile = EnemyProjectile(self.x + offset_x, self.y + self.height//2, angle - 90, "small")
                     projectiles.append(projectile)
 
         return projectiles
