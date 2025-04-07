@@ -1,0 +1,45 @@
+{
+    "defaults": {
+        "colours": {
+            "normal_bg": "#404040",
+            "hovered_bg": "#505050",
+            "disabled_bg": "#303030",
+            "selected_bg": "#505060",
+            "active_bg": "#606070",
+            "normal_text": "#FFFFFF",
+            "hovered_text": "#EEEEEE",
+            "disabled_text": "#AAAAAA",
+            "selected_text": "#FFFFFF",
+            "active_text": "#FFFFFF",
+            "normal_border": "#888888",
+            "hovered_border": "#AAAAAA",
+            "disabled_border": "#555555",
+            "selected_border": "#FFFFFF",
+            "active_border": "#FFFFFF",
+            "filled_bar": "#008000",
+            "unfilled_bar": "#555555"
+        }
+    },
+    "button": {
+        "misc": {
+            "text_horiz_alignment": "center",
+            "text_vert_alignment": "center",
+            "html_support": true
+        }
+    },
+    "#ability_button_rapid_fire": {
+         "colours": {
+              "normal_bg": "#800000"
+         }
+    },
+    "#ability_button_shield": {
+         "colours": {
+              "normal_bg": "#000080"
+         }
+    },
+    "#ability_button_piercing": {
+         "colours": {
+              "normal_bg": "#008000"
+         }
+    }
+} 
