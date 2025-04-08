@@ -13,18 +13,24 @@ class TitleScreen:
         self.begin_button = None
         self.gallery_button = None
         self.exit_button = None
+        self.title_font = None
+        self.subtitle_font = None
+        self.title_rect = None
+        self.subtitle_rect = None
         self.is_visible = False
+        self.stars = []
         
         # Animation properties
         self.title_scale = 1.0
-        self.title_direction = 0.001
-        self.title_max_scale = 1.05
         self.title_min_scale = 0.95
+        self.title_max_scale = 1.05
+        self.title_direction = 0.002
         
-        # Star particles for animation
-        self.stars = []
+        # Debug hint text
+        self.debug_hint_text = None
+        self.debug_hint_rect = None
+        
         self.setup_stars()
-        
         self.setup_ui()
         self.hide() # Hide UI elements initially
         
@@ -40,6 +46,13 @@ class TitleScreen:
             size = random.uniform(0.5, 3)
             speed = random.uniform(0.2, 1.0)
             pulse_speed = random.uniform(0.02, 0.05)
+            
+            # Randomly select a star color (white with slight tints)
+            brightness = random.randint(200, 255)
+            blue_tint = random.randint(0, 30)  # Some stars have slight blue tint
+            yellow_tint = random.randint(0, 20)  # Some stars have slight yellow tint
+            color = (brightness, brightness - yellow_tint, brightness - blue_tint)
+            
             self.stars.append({
                 'x': x,
                 'y': y,
@@ -47,7 +60,8 @@ class TitleScreen:
                 'base_size': size,
                 'speed': speed,
                 'pulse': 0,
-                'pulse_speed': pulse_speed
+                'pulse_speed': pulse_speed,
+                'color': color
             })
 
     def setup_ui(self):
@@ -117,6 +131,16 @@ class TitleScreen:
             manager=self.manager
         )
         
+        # Debug hint text (only if DEBUG_MODE is enabled)
+        if DEBUG_MODE:
+            debug_font_size = int(16 * scale)
+            debug_font = load_font(debug_font_size)
+            self.debug_hint_text = debug_font.render("Press G for Debug Menu", True, GRAY)
+            self.debug_hint_rect = self.debug_hint_text.get_rect(bottomright=(screen_width - int(10 * scale), screen_height - int(10 * scale)))
+        else:
+            self.debug_hint_text = None
+            self.debug_hint_rect = None
+        
         # Setup star animations again for the new size
         self.setup_stars()
 
@@ -178,17 +202,20 @@ class TitleScreen:
 
     def draw(self, surface):
         if not self.is_visible:
-             return
-             
+            return
+        
+        # Fill the background with black
+        surface.fill(BLACK)
+        
         # Draw animated background stars
         for star in self.stars:
             pygame.draw.circle(
                 surface, 
-                WHITE, 
+                star['color'], 
                 (int(star['x']), int(star['y'])), 
-                star['size']
+                int(star['size'])
             )
-             
+        
         # Draw animated title text with pulsing scale
         if self.title_text:
             # Create scaled version of the title
@@ -199,7 +226,7 @@ class TitleScreen:
             # Update the rect to center the scaled title
             scaled_rect = scaled_title.get_rect(center=self.title_rect.center)
             surface.blit(scaled_title, scaled_rect)
-        
+            
         # Draw subtitle with glow effect
         if self.subtitle_text:
             # Draw a subtle glow around the subtitle
@@ -210,6 +237,10 @@ class TitleScreen:
             
             # Draw the actual subtitle
             surface.blit(self.subtitle_text, self.subtitle_rect)
+        
+        # Draw debug hint if enabled
+        if self.debug_hint_text and DEBUG_MODE:
+            surface.blit(self.debug_hint_text, self.debug_hint_rect)
 
     def handle_event(self, event, game_state):
         if not self.is_visible:

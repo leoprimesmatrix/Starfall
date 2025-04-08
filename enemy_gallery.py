@@ -165,15 +165,22 @@ class EnemyGallery:
             stat_font = load_font(font_size)
             title_font = load_font(int(32 * scale))
             
-            # Name and type at the top
+            # Get enemy unlock level information from constants
+            enemy_levels = ENEMY_LEVEL_PROGRESSION
+            
             enemy_name = f"KRYLL {self.current_enemy.type}"
             name_text = title_font.render(enemy_name, True, RED)
             name_rect = name_text.get_rect(center=(self.enemy_display.get_width() // 2, 50))
             self.enemy_display.blit(name_text, name_rect)
             
-            # Add description below the name
+            # Add the level where this enemy first appears
+            level_text = stat_font.render(f"First Appears: Level {enemy_levels.get(self.current_enemy.type, '?')}", True, YELLOW)
+            level_text_rect = level_text.get_rect(center=(self.enemy_display.get_width() // 2, name_rect.bottom + 20))
+            self.enemy_display.blit(level_text, level_text_rect)
+            
+            # Add description below the level text
             description = ENEMY_DESCRIPTIONS.get(self.current_enemy.type, "No description available.")
-            description_y = name_rect.bottom + 30
+            description_y = level_text_rect.bottom + 20
             desc_text = stat_font.render(description, True, LIGHT_GRAY)
             desc_rect = desc_text.get_rect(center=(self.enemy_display.get_width() // 2, description_y))
             self.enemy_display.blit(desc_text, desc_rect)

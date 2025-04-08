@@ -126,12 +126,12 @@ class GameOverScreen:
             return True
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.play_again_button:
-                game_state.reset_game()
+                game_state.reset_for_retry()
                 game_state.change_state(STATE_PLAYING)
             elif event.ui_element == self.menu_button:
                 game_state.change_state(STATE_TITLE)
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_r:
-                game_state.reset_game()
+                game_state.reset_for_retry()
                 game_state.change_state(STATE_PLAYING)
         return True 

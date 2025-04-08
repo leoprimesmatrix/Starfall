@@ -161,6 +161,9 @@ class DebugMenu:
         if not self.is_visible:
             return True
             
+        # Store the previous state to know where to return
+        previous_state = game_state.previous_state if hasattr(game_state, 'previous_state') else STATE_PLAYING
+            
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             # Heal player
             if event.ui_element == self.heal_button and playing_screen.player:
@@ -187,11 +190,19 @@ class DebugMenu:
                     
             # Close menu
             elif event.ui_element == self.close_button:
-                game_state.change_state(STATE_PLAYING)
+                # Return to the previous state (either title or playing)
+                if previous_state == STATE_TITLE:
+                    game_state.change_state(STATE_TITLE)
+                else:
+                    game_state.change_state(STATE_PLAYING)
                 
         # Also close with Escape key
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            game_state.change_state(STATE_PLAYING)
+            # Return to the previous state (either title or playing)
+            if previous_state == STATE_TITLE:
+                game_state.change_state(STATE_TITLE)
+            else:
+                game_state.change_state(STATE_PLAYING)
             
         return True
         

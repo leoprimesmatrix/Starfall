@@ -12,6 +12,7 @@ from game_over_screen import GameOverScreen
 from ability_selection_screen import AbilitySelectionScreen
 from debug_menu import DebugMenu
 from enemy_gallery import EnemyGallery
+from victory_screen import VictoryScreen
 
 class TransitionSystem:
     def __init__(self, screen_width, screen_height):
@@ -116,12 +117,13 @@ class StarfallGame:
         self.ability_selection_screen = AbilitySelectionScreen(self.screen, self.manager)
         self.debug_menu = DebugMenu(self.screen, self.manager)
         self.enemy_gallery = EnemyGallery(self.screen, self.manager)
+        self.victory_screen = VictoryScreen(self.screen, self.manager)
         
         # Show initial screen
         self.title_screen.show()
         
     def handle_resize(self, event):
-        # Store current UI states before recreating
+        # Store current UI states before recreating them
         title_visible = self.game_state.current_state == STATE_TITLE
         level_select_visible = self.game_state.current_state == STATE_LEVEL_SELECT
         playing_visible = self.game_state.current_state == STATE_PLAYING
@@ -130,6 +132,7 @@ class StarfallGame:
         ability_select_visible = self.game_state.current_state == STATE_ABILITY_SELECT
         debug_menu_visible = self.game_state.current_state == STATE_DEBUG_MENU
         enemy_gallery_visible = self.game_state.current_state == STATE_ENEMY_GALLERY
+        victory_visible = self.game_state.current_state == STATE_VICTORY
         
         # Hide all UI elements before recreating them
         self.title_screen.hide()
@@ -140,6 +143,7 @@ class StarfallGame:
         self.ability_selection_screen.hide()
         self.debug_menu.hide()
         self.enemy_gallery.hide()
+        self.victory_screen.hide()
         
         # Clear all UI elements
         self.manager.clear_and_reset()
@@ -162,6 +166,7 @@ class StarfallGame:
         self.ability_selection_screen.screen = self.screen
         self.debug_menu.screen = self.screen
         self.enemy_gallery.screen = self.screen
+        self.victory_screen.screen = self.screen
         
         # Recreate UI elements for each screen
         self.title_screen.setup_ui()
@@ -172,6 +177,7 @@ class StarfallGame:
         self.ability_selection_screen.setup_ui()
         self.debug_menu.setup_ui()
         self.enemy_gallery.setup_ui()
+        self.victory_screen.setup_ui()
         
         # Restore visibility states
         if title_visible:
@@ -190,6 +196,8 @@ class StarfallGame:
             self.debug_menu.show()
         if enemy_gallery_visible:
             self.enemy_gallery.show()
+        if victory_visible:
+            self.victory_screen.show()
             
     def toggle_fullscreen(self):
         # Store current window state
@@ -223,9 +231,10 @@ class StarfallGame:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F11:
                         self.toggle_fullscreen()
-                    elif event.key == pygame.K_g and DEBUG_MODE and self.game_state.current_state == STATE_PLAYING:
-                        # Toggle debug menu with G key when in playing state
-                        self.change_state_with_transition(STATE_DEBUG_MENU)
+                    elif event.key == pygame.K_g and DEBUG_MODE:
+                        # Toggle debug menu with G key from any state if debug mode is on
+                        if self.game_state.current_state == STATE_PLAYING or self.game_state.current_state == STATE_TITLE:
+                            self.change_state_with_transition(STATE_DEBUG_MENU)
                     
                 # Pass event to the currently active screen's handler
                 # The player object is needed for ability selection
@@ -260,6 +269,9 @@ class StarfallGame:
                 elif self.game_state.current_state == STATE_ENEMY_GALLERY:
                     if not self.enemy_gallery.handle_event(event, self.game_state):
                         running = False
+                elif self.game_state.current_state == STATE_VICTORY:
+                    if not self.victory_screen.handle_event(event, self.game_state):
+                        running = False
 
                 # Always process manager events
                 self.manager.process_events(event)
@@ -279,6 +291,7 @@ class StarfallGame:
                 self.ability_selection_screen.hide()
                 self.debug_menu.hide()
                 self.enemy_gallery.hide()
+                self.victory_screen.hide()
                 
                 # Show only the current screen
                 if self.game_state.current_state == STATE_TITLE:
@@ -302,6 +315,8 @@ class StarfallGame:
                 elif self.game_state.current_state == STATE_ENEMY_GALLERY:
                     self.enemy_gallery.show()
                     self.enemy_gallery.update_enemy_display() # Make sure enemy display is updated
+                elif self.game_state.current_state == STATE_VICTORY:
+                    self.victory_screen.show() # Show victory screen
                 
                 last_state = self.game_state.current_state
 
@@ -337,6 +352,11 @@ class StarfallGame:
                 self.game_over_screen.draw(self.screen, self.game_state)
             elif self.game_state.current_state == STATE_ENEMY_GALLERY:
                 self.enemy_gallery.draw(self.screen)
+            elif self.game_state.current_state == STATE_VICTORY:
+                 # Draw playing screen background then victory overlay
+                 if self.playing_screen.player:
+                    self.playing_screen.draw(self.screen, self.game_state)
+                 self.victory_screen.draw(self.screen, self.game_state)
             
             # Draw overlays on top
             if self.game_state.current_state == STATE_PAUSED:

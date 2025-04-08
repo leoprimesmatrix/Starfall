@@ -237,6 +237,11 @@ class PlayerShip:
             flash_surface.fill(RED)
             flash_surface.set_alpha(100)  # Semi-transparent
             surface.blit(flash_surface, (0, 0))
+            
+    def is_invulnerable(self):
+        """Check if the player is currently invulnerable"""
+        # Player is invulnerable during damage flash
+        return self.damage_flash_timer > 0
 
 class Laser:
     def __init__(self, x, y, angle, piercing=False):
@@ -410,6 +415,13 @@ class Enemy:
         self.y += self.speed
         if self.type == "Swarmer":
             self.x += math.sin(self.y * 0.1) * 2  # Erratic movement
+            
+    def take_damage(self, amount):
+        """Reduce enemy health by the given amount"""
+        self.health -= amount
+        # Update info panel with new health
+        self.info_panel = self.create_info_panel()
+        return self.health <= 0
             
     def draw(self, surface):
         # Draw enemy ship
@@ -638,15 +650,26 @@ class BossEnemy:
         self.speed = BOSS_SPEED
         self.shoot_cooldown_laser = 0
         self.shoot_cooldown_plasma = 0
-        self.shoot_cooldown_spread = 0  # New attack type
+        self.shoot_cooldown_spread = 0  # Spread attack
+        self.shoot_cooldown_beam = 0    # Death beam attack
+        self.shoot_cooldown_mines = 0   # Mine deployment
         self.direction = 1 # 1 for right, -1 for left
         self.entry_complete = False
         self.screen_width = screen_width # Store for movement bounds
-        self.attack_phase = 1  # Boss will have multiple attack phases
-        self.phase_timer = 0   # Timer for phase transitions
-        self.phase_duration = 600  # 10 seconds per phase
+        self.attack_phase = 1  # Start with phase 1
+        self.phase_timer = 0   # Timer for phase-specific patterns
+        self.phase_transition_time = 0  # Timer for phase transition effects
         self.flash_timer = 0   # For damage visual
         self.name = BOSS_NAME  # Kryll Command Carrier
+        
+        # Beam attack state
+        self.beam_active = False
+        self.beam_target_x = 0
+        self.beam_charge_time = 0
+        self.beam_duration = 0
+        
+        # Mine deployment state
+        self.mines = []
 
     def update(self):
         # Entry sequence
@@ -656,36 +679,80 @@ class BossEnemy:
                 self.y = self.height // 2
                 self.entry_complete = True
             return # Don't move sideways or shoot during entry
-
-        # Phase management
+        
+        # Update phase transition timer
+        if self.phase_transition_time > 0:
+            self.phase_transition_time -= 1
+            # Don't move or attack during transition
+            return
+            
+        # Update phase timer (used for movement patterns)
         self.phase_timer += 1
-        if self.phase_timer >= self.phase_duration:
-            self.phase_timer = 0
-            self.attack_phase = min(3, self.attack_phase + 1)  # Up to 3 phases
-
+            
         # Movement behavior changes based on phase
         if self.attack_phase == 1:
-            # Simple left-right movement in phase 1
+            # Phase 1: Simple left-right movement
             self.x += self.speed * self.direction
             if self.x <= self.width // 2 or self.x >= self.screen_width - self.width // 2:
                 self.direction *= -1 # Reverse direction at edges
         elif self.attack_phase == 2:
-            # More aggressive movement in phase 2
+            # Phase 2: Faster movement with slight vertical oscillation
             self.x += (self.speed * 1.5) * self.direction
             if self.x <= self.width // 2 or self.x >= self.screen_width - self.width // 2:
                 self.direction *= -1
             # Small vertical movement
             self.y += math.sin(self.phase_timer * 0.05) * 0.5
         elif self.attack_phase == 3:
-            # Erratic movement in final phase
-            self.x += (self.speed * 2) * self.direction
+            # Phase 3: More aggressive movement pattern
+            self.x += (self.speed * 1.8) * self.direction
             if self.x <= self.width // 2 or self.x >= self.screen_width - self.width // 2:
                 self.direction *= -1
             # More pronounced vertical movement
-            self.y += math.sin(self.phase_timer * 0.1) * 1.0
+            self.y += math.sin(self.phase_timer * 0.08) * 0.8
+            # Occasional quick dashes
+            if self.phase_timer % 120 == 0:  # Every 2 seconds
+                self.x += self.direction * 20  # Quick dash
+        elif self.attack_phase == 4:
+            # Phase 4: Erratic movement with beam attack preparation
+            self.x += (self.speed * 1.5) * self.direction
+            if self.x <= self.width // 2 or self.x >= self.screen_width - self.width // 2:
+                self.direction *= -1
+            
+            # More complex vertical movement
+            vertical_offset = (
+                math.sin(self.phase_timer * 0.05) * 1.0 + 
+                math.sin(self.phase_timer * 0.1) * 0.5
+            )
+            self.y += vertical_offset
+            
+            # During beam charging, slow down movement
+            if self.beam_charge_time > 0:
+                self.x -= self.direction * (self.speed * 0.5)  # Slow down and stabilize
+        elif self.attack_phase == 5:
+            # Phase 5: Desperate final phase with frantic movement
+            # Faster, more erratic movement
+            self.x += (self.speed * 2.5) * self.direction
+            if self.x <= self.width // 2 or self.x >= self.screen_width - self.width // 2:
+                self.direction *= -1
+            
+            # Chaotic movement pattern
+            vertical_movement = (
+                math.sin(self.phase_timer * 0.1) * 1.2 + 
+                math.sin(self.phase_timer * 0.2) * 0.8 +
+                math.cos(self.phase_timer * 0.15) * 0.5
+            )
+            self.y += vertical_movement
+            
+            # Random direction changes
+            if random.random() < 0.01:  # 1% chance per frame
+                self.direction *= -1
             
         # Clamp position to screen bounds
         self.x = max(self.width // 2, min(self.screen_width - self.width // 2, self.x))
+        # Clamp vertical position to keep boss in top half of screen
+        max_y = self.height // 2 + 100  # Some room to move vertically
+        min_y = self.height // 2        # Minimum height
+        self.y = max(min_y, min(max_y, self.y))
 
         # Update cooldowns
         if self.shoot_cooldown_laser > 0:
@@ -694,96 +761,237 @@ class BossEnemy:
             self.shoot_cooldown_plasma -= 1
         if self.shoot_cooldown_spread > 0:
             self.shoot_cooldown_spread -= 1
+        if self.shoot_cooldown_beam > 0:
+            self.shoot_cooldown_beam -= 1
+        if self.shoot_cooldown_mines > 0:
+            self.shoot_cooldown_mines -= 1
             
+        # Beam attack state management
+        if self.beam_charge_time > 0:
+            self.beam_charge_time -= 1
+            if self.beam_charge_time <= 0:
+                self.beam_active = True
+                self.beam_duration = 90  # Beam lasts for 1.5 seconds
+        
+        if self.beam_duration > 0:
+            self.beam_duration -= 1
+            if self.beam_duration <= 0:
+                self.beam_active = False
+                
         # Update damage flash
         if self.flash_timer > 0:
             self.flash_timer -= 1
 
     def shoot(self):
+        # Don't shoot during phase transitions
+        if self.phase_transition_time > 0:
+            return []
+            
         projectiles = []
-        # Attack pattern changes based on phase
         
-        # Phase 1: Basic attacks
+        # Phase 1: Basic laser attacks
         if self.attack_phase >= 1:
             # Laser attack
             if self.shoot_cooldown_laser <= 0:
                 cooldown_multiplier = 1.0
-                if self.attack_phase == 3:
-                    cooldown_multiplier = 0.7  # Faster in last phase
+                if self.attack_phase >= 3:
+                    cooldown_multiplier = 0.8  # Faster in later phases
                 
                 self.shoot_cooldown_laser = int(BOSS_SHOOT_COOLDOWN_LASER * cooldown_multiplier)
-                # Fire multiple lasers
-                for offset in [-self.width//4, 0, self.width//4]:
-                    projectiles.append(EnemyProjectile(self.x + offset, self.y + self.height//2, 90, "laser"))
+                
+                # Basic laser pattern
+                if self.attack_phase == 1:
+                    # Simple 3-way laser spread
+                    for offset in [-self.width//4, 0, self.width//4]:
+                        projectiles.append(EnemyProjectile(
+                            self.x + offset, 
+                            self.y + self.height//2, 
+                            90, 
+                            "laser",
+                            damage=1,
+                            speed=7
+                        ))
+                else:
+                    # Enhanced laser pattern for higher phases
+                    num_lasers = 3 + self.attack_phase  # More lasers in higher phases
+                    spread = 40 + (self.attack_phase * 10)  # Wider spread in higher phases
+                    
+                    for i in range(num_lasers):
+                        angle = 90 - spread/2 + (spread / (num_lasers-1)) * i
+                        projectiles.append(EnemyProjectile(
+                            self.x, 
+                            self.y + self.height//2, 
+                            angle, 
+                            "laser",
+                            damage=1,
+                            speed=7
+                        ))
 
-        # Phase 2: Add plasma attacks
+        # Phase 2+: Add plasma attacks
         if self.attack_phase >= 2:
             # Plasma attack
             if self.shoot_cooldown_plasma <= 0:
                 cooldown_multiplier = 1.0
-                if self.attack_phase == 3:
-                    cooldown_multiplier = 0.7  # Faster in last phase
+                if self.attack_phase >= 4:
+                    cooldown_multiplier = 0.7  # Faster in last phases
                 
                 self.shoot_cooldown_plasma = int(BOSS_SHOOT_COOLDOWN_PLASMA * cooldown_multiplier)
-                # Fire plasma
-                projectiles.append(EnemyProjectile(self.x, self.y + self.height//2, 90, "plasma"))
+                
+                # Basic plasma shot
+                projectiles.append(EnemyProjectile(
+                    self.x, 
+                    self.y + self.height//2, 
+                    90, 
+                    "plasma",
+                    damage=2,
+                    speed=4,
+                    width=15,
+                    height=15,
+                    health=2 + self.attack_phase  # Stronger in higher phases
+                ))
                 
                 # Add side shots in later phases
-                if self.attack_phase == 3:
-                    projectiles.append(EnemyProjectile(self.x - self.width//3, self.y + self.height//3, 90, "plasma"))
-                    projectiles.append(EnemyProjectile(self.x + self.width//3, self.y + self.height//3, 90, "plasma"))
+                if self.attack_phase >= 3:
+                    for offset in [-self.width//3, self.width//3]:
+                        projectiles.append(EnemyProjectile(
+                            self.x + offset, 
+                            self.y + self.height//3, 
+                            90, 
+                            "plasma",
+                            damage=2,
+                            speed=4,
+                            width=15,
+                            height=15,
+                            health=2
+                        ))
 
-        # Phase 3: Add spread attack
-        if self.attack_phase == 3:
+        # Phase 3+: Add spread attack
+        if self.attack_phase >= 3:
             if self.shoot_cooldown_spread <= 0:
-                self.shoot_cooldown_spread = 180  # 3 seconds
+                self.shoot_cooldown_spread = BOSS_SHOOT_COOLDOWN_SPREAD
+                
                 # Create a spread of small projectiles
-                num_projectiles = 8
+                num_projectiles = 6 + (self.attack_phase - 3) * 2  # More projectiles in higher phases
                 for i in range(num_projectiles):
                     angle = (i / num_projectiles) * 180  # Spread in semicircle down
                     rad_angle = math.radians(angle)
                     offset_x = math.cos(rad_angle) * 30
-                    projectile = EnemyProjectile(self.x + offset_x, self.y + self.height//2, angle - 90, "small")
+                    projectile = EnemyProjectile(
+                        self.x + offset_x, 
+                        self.y + self.height//2, 
+                        angle - 90, 
+                        "small",
+                        damage=1,
+                        speed=5
+                    )
                     projectiles.append(projectile)
+
+        # Phase 4+: Add death beam attack
+        if self.attack_phase >= 4:
+            if self.shoot_cooldown_beam <= 0 and not self.beam_active and self.beam_charge_time <= 0:
+                self.shoot_cooldown_beam = BOSS_SHOOT_COOLDOWN_BEAM
+                # Start charging the beam
+                self.beam_charge_time = 60  # 1 second charge time
+                # Pick a target point (to be used when the beam activates)
+                self.beam_target_x = random.randint(
+                    int(self.width), 
+                    int(self.screen_width - self.width)
+                )
+
+        # Phase 5: Add mine deployment
+        if self.attack_phase >= 5:
+            if self.shoot_cooldown_mines <= 0:
+                self.shoot_cooldown_mines = BOSS_SHOOT_COOLDOWN_MINES
+                
+                # Deploy mines in a pattern
+                num_mines = 3
+                spacing = self.screen_width // (num_mines + 1)
+                
+                for i in range(num_mines):
+                    x_pos = spacing * (i + 1)
+                    projectiles.append(EnemyProjectile(
+                        x_pos, 
+                        self.y + self.height//2, 
+                        90, 
+                        "mine",
+                        damage=3,
+                        speed=2,
+                        width=20,
+                        height=20,
+                        health=5
+                    ))
 
         return projectiles
 
     def take_damage(self, amount):
+        old_health_percentage = self.health / self.max_health
+        
+        # Apply damage
         self.health -= amount
         self.flash_timer = 5  # Flash for 5 frames when damaged
-        # Increase attack phase if health drops below thresholds
-        if self.health <= self.max_health * 0.66 and self.attack_phase < 2:
-            self.attack_phase = 2
-        elif self.health <= self.max_health * 0.33 and self.attack_phase < 3:
-            self.attack_phase = 3
+        
+        # Current health percentage
+        new_health_percentage = self.health / self.max_health
+        
+        # Check if we need to change phases
+        # Find which health threshold we're below now but weren't before
+        for i in range(len(BOSS_PHASE_THRESHOLDS) - 1):
+            threshold = BOSS_PHASE_THRESHOLDS[i+1]
+            if old_health_percentage > threshold and new_health_percentage <= threshold:
+                # Transition to the new phase (add one because phases are 1-indexed)
+                self.attack_phase = i + 2  # Skip to this phase
+                self.phase_transition_time = 60  # 1 second transition time
+                break
 
     def draw(self, surface):
         # Base color changes based on phase
         if self.attack_phase == 1:
-            base_color = PURPLE
+            base_color = (100, 100, 100)  # Gray for phase 1
         elif self.attack_phase == 2:
-            base_color = (150, 0, 150)  # Brighter purple
-        else:
-            base_color = (200, 0, 100)  # Magenta/red
-            
-        # Flash white when damaged
+            base_color = (150, 100, 100)  # Reddish for phase 2
+        elif self.attack_phase == 3:
+            base_color = (180, 80, 80)    # More red for phase 3
+        elif self.attack_phase == 4:
+            base_color = (220, 60, 60)    # Even more red for phase 4
+        elif self.attack_phase == 5:
+            base_color = (250, 30, 30)    # Bright red for final phase
+        
+        # Modify color based on flash (damage indicator)
         if self.flash_timer > 0:
-            if self.flash_timer % 2 == 0:  # Alternate frames for flashing effect
-                base_color = WHITE
-
-        # Draw boss body - more complex shape based on phase
+            # Flash bright white when damaged
+            flash_intensity = self.flash_timer / 5  # 5 is max flash timer
+            base_color = (
+                min(255, int(base_color[0] + (255 - base_color[0]) * flash_intensity)),
+                min(255, int(base_color[1] + (255 - base_color[1]) * flash_intensity)),
+                min(255, int(base_color[2] + (255 - base_color[2]) * flash_intensity))
+            )
+        
+        # Phase transition effect
+        if self.phase_transition_time > 0:
+            # Pulse/flicker during transition
+            if self.phase_transition_time % 10 < 5:  # Alternate every 5 frames
+                base_color = (255, 255, 0)  # Bright yellow during transition
+        
+        # Different visual appearance based on phase
         if self.attack_phase == 1:
-            # Phase 1: Simple shape
+            # Phase 1: Simple rectangular ship
             pygame.draw.rect(surface, base_color, (self.x - self.width//2, self.y - self.height//2, self.width, self.height))
             
-            # Add some details
-            pygame.draw.rect(surface, RED, 
-                           (self.x - self.width//3, self.y - self.height//2, self.width//6, self.height//6))
-            pygame.draw.rect(surface, RED, 
-                           (self.x + self.width//6, self.y - self.height//2, self.width//6, self.height//6))
+            # Engine exhaust
+            pygame.draw.polygon(surface, (255, 100, 0), [
+                (self.x - self.width//4, self.y + self.height//2),
+                (self.x, self.y + self.height//2 + 20),
+                (self.x + self.width//4, self.y + self.height//2)
+            ])
+            
+            # Basic details
+            pygame.draw.line(surface, (80, 80, 80), 
+                             (self.x - self.width//2, self.y), 
+                             (self.x + self.width//2, self.y), 
+                             3)
         
         elif self.attack_phase == 2:
-            # Phase 2: More detailed shape
+            # Phase 2: More detailed ship with wings
             # Main body
             pygame.draw.rect(surface, base_color, (self.x - self.width//2, self.y - self.height//2, self.width, self.height))
             
@@ -804,46 +1012,118 @@ class BossEnemy:
             pygame.draw.circle(surface, eye_color, (int(self.x - self.width//4), int(self.y)), 8)
             pygame.draw.circle(surface, eye_color, (int(self.x + self.width//4), int(self.y)), 8)
             
-        else:
-            # Phase 3: Full detailed shape with "aura"
-            # Create aura effect
-            aura_width = self.width + 20
-            aura_height = self.height + 20
-            aura_surface = pygame.Surface((aura_width, aura_height), pygame.SRCALPHA)
-            pygame.draw.ellipse(aura_surface, (255, 0, 0, 100), (0, 0, aura_width, aura_height))
-            surface.blit(aura_surface, (self.x - aura_width//2, self.y - aura_height//2))
-            
+        elif self.attack_phase == 3:
+            # Phase 3: More aggressive looking with spikes
             # Main body
             pygame.draw.rect(surface, base_color, (self.x - self.width//2, self.y - self.height//2, self.width, self.height))
             
-            # Extended wings
+            # Wing extensions with spikes
             pygame.draw.polygon(surface, base_color, [
-                (self.x - self.width//2, self.y - 10),
-                (self.x - self.width//2 - 30, self.y + 20),
-                (self.x - self.width//2, self.y + 50),
+                (self.x - self.width//2, self.y - self.height//4),
+                (self.x - self.width//2 - 30, self.y),
+                (self.x - self.width//2 - 20, self.y + 20),
+                (self.x - self.width//2, self.y + self.height//4),
             ])
             pygame.draw.polygon(surface, base_color, [
-                (self.x + self.width//2, self.y - 10),
-                (self.x + self.width//2 + 30, self.y + 20),
-                (self.x + self.width//2, self.y + 50),
+                (self.x + self.width//2, self.y - self.height//4),
+                (self.x + self.width//2 + 30, self.y),
+                (self.x + self.width//2 + 20, self.y + 20),
+                (self.x + self.width//2, self.y + self.height//4),
             ])
             
-            # Glowing "eyes" and other details
-            eye_color = (255, 255, 0)  # Yellow in final phase
-            pygame.draw.circle(surface, eye_color, (int(self.x - self.width//4), int(self.y)), 10)
-            pygame.draw.circle(surface, eye_color, (int(self.x + self.width//4), int(self.y)), 10)
+            # Multiple glowing spots
+            glow_color = (255, 50, 0)  # Orange-red glow
+            for i in range(3):
+                offset = (i - 1) * self.width//4
+                pygame.draw.circle(surface, glow_color, (int(self.x + offset), int(self.y)), 10)
+                
+            # Engine exhaust (stronger)
+            pygame.draw.polygon(surface, (255, 150, 0), [
+                (self.x - self.width//3, self.y + self.height//2),
+                (self.x, self.y + self.height//2 + 30),
+                (self.x + self.width//3, self.y + self.height//2)
+            ])
             
-            # Weapon ports
-            pygame.draw.rect(surface, BLUE, 
-                           (self.x - self.width//4 - 5, self.y + self.height//2 - 5, 10, 10))
-            pygame.draw.rect(surface, BLUE, 
-                           (self.x + self.width//4 - 5, self.y + self.height//2 - 5, 10, 10))
-
-        # Draw health bar
-        health_bar_width = self.width * 1.2  # Wider for visibility
-        health_bar_height = 12
+        elif self.attack_phase == 4:
+            # Phase 4: Transformed with more weapons
+            # Main body (larger)
+            pygame.draw.rect(surface, base_color, (self.x - self.width//2 - 10, self.y - self.height//2, self.width + 20, self.height))
+            
+            # Cannon extensions
+            cannon_color = (50, 50, 50)
+            pygame.draw.rect(surface, cannon_color, (self.x - self.width//3, self.y + self.height//2, 20, 30))
+            pygame.draw.rect(surface, cannon_color, (self.x + self.width//3 - 20, self.y + self.height//2, 20, 30))
+            
+            # Central weapon
+            pygame.draw.rect(surface, (100, 0, 0), (self.x - 15, self.y + self.height//2 - 5, 30, 40))
+            
+            # Glowing parts (more intense)
+            for i in range(4):
+                x_offset = (i - 1.5) * self.width//3
+                y_offset = (i % 2) * 10  # Alternating height
+                glow_radius = 8 + (i % 2) * 4  # Alternating size
+                pygame.draw.circle(surface, (255, 50, 0), (int(self.x + x_offset), int(self.y - 10 + y_offset)), glow_radius)
+                
+            # Beam charging/firing effect
+            if self.beam_charge_time > 0:
+                # Charging animation
+                charge_progress = 1 - (self.beam_charge_time / 60)  # 0 to 1
+                charge_color = (255, 255 * (1 - charge_progress), 0)  # Yellow to red
+                charge_radius = 5 + 10 * charge_progress
+                
+                pygame.draw.circle(surface, charge_color, (int(self.x), int(self.y + self.height//2 + 20)), int(charge_radius))
+            
+            if self.beam_active and self.beam_duration > 0:
+                # Draw the actual beam
+                beam_color = (255, 50, 0, 150)  # Semi-transparent red
+                beam_surface = pygame.Surface((10, 1000), pygame.SRCALPHA)
+                pygame.draw.rect(beam_surface, beam_color, (0, 0, 10, 1000))
+                
+                # Rotate beam to point at target
+                beam_end_y = 1000  # Far end of screen
+                angle = math.degrees(math.atan2(beam_end_y, self.beam_target_x - self.x))
+                rotated_beam = pygame.transform.rotate(beam_surface, -angle)
+                
+                # Position the beam origin at the cannon
+                beam_rect = rotated_beam.get_rect(center=(self.x, self.y + self.height//2 + 20))
+                surface.blit(rotated_beam, beam_rect)
+                
+        elif self.attack_phase == 5:
+            # Phase 5: Final form, damaged but dangerous
+            # Irregular, damaged ship shape
+            points = [
+                (self.x - self.width//2 - 15, self.y - self.height//2),
+                (self.x - self.width//3, self.y - self.height//2 - 20),
+                (self.x + self.width//3, self.y - self.height//2 - 10),
+                (self.x + self.width//2 + 15, self.y - self.height//2),
+                (self.x + self.width//2 + 25, self.y + self.height//4),
+                (self.x + self.width//3, self.y + self.height//2 + 10),
+                (self.x - self.width//3, self.y + self.height//2 + 5),
+                (self.x - self.width//2 - 25, self.y + self.height//4)
+            ]
+            pygame.draw.polygon(surface, base_color, points)
+            
+            # Damage effects (holes and cracks)
+            # Holes
+            pygame.draw.circle(surface, BLACK, (int(self.x - self.width//4), int(self.y + self.height//4)), 12)
+            pygame.draw.circle(surface, BLACK, (int(self.x + self.width//3), int(self.y - self.height//6)), 8)
+            
+            # Glowing core exposed
+            core_color = (255, 200, 0)
+            pygame.draw.circle(surface, core_color, (int(self.x), int(self.y)), 20)
+            
+            # Sparks and damage effects
+            if random.random() < 0.3:  # 30% chance each frame
+                spark_offset_x = random.randint(-self.width//2, self.width//2)
+                spark_offset_y = random.randint(-self.height//2, self.height//2)
+                spark_color = (255, 200, 0)
+                pygame.draw.circle(surface, spark_color, (int(self.x + spark_offset_x), int(self.y + spark_offset_y)), 3)
+                
+        # Always draw health bar above the boss
+        health_bar_width = 100
+        health_bar_height = 8
         health_bar_x = self.x - health_bar_width//2
-        health_bar_y = self.y - self.height//2 - 20 # Above the boss
+        health_bar_y = self.y - self.height//2 - 20
 
         # Draw background
         pygame.draw.rect(surface, DARK_GRAY, (health_bar_x, health_bar_y, health_bar_width, health_bar_height))
@@ -869,3 +1149,89 @@ class BossEnemy:
 
     def is_defeated(self):
         return self.health <= 0 
+
+class Explosion:
+    def __init__(self, x, y, size, duration=30, color=None):
+        self.x = x
+        self.y = y
+        self.size = size
+        self.max_size = size
+        self.current_frame = 0
+        self.max_frames = duration
+        self.color = color or (255, 165, 0)  # Default orange if no color provided
+        self.particles = []
+        
+        # Create explosion particles
+        num_particles = int(size / 2)
+        for _ in range(num_particles):
+            angle = random.uniform(0, math.pi * 2)
+            speed = random.uniform(1, 3)
+            self.particles.append({
+                'x': 0,
+                'y': 0,
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'size': random.uniform(1, 4),
+                'color': self.get_random_color()
+            })
+            
+    def get_random_color(self):
+        # Create variations of the base color for particles
+        r, g, b = self.color
+        variation = 50
+        r = max(0, min(255, r + random.randint(-variation, variation)))
+        g = max(0, min(255, g + random.randint(-variation, variation)))
+        b = max(0, min(255, b + random.randint(-variation, variation)))
+        return (r, g, b)
+    
+    def update(self):
+        self.current_frame += 1
+        for particle in self.particles:
+            particle['x'] += particle['vx']
+            particle['y'] += particle['vy']
+            
+    def draw(self, surface):
+        # Calculate alpha based on lifetime
+        progress = self.current_frame / self.max_frames
+        alpha = int(255 * (1 - progress))
+        size_factor = 1 - progress * 0.5  # Explosion grows a bit then shrinks
+        
+        # Draw each particle
+        for particle in self.particles:
+            particle_x = int(self.x + particle['x'] * progress * self.size / 2)
+            particle_y = int(self.y + particle['y'] * progress * self.size / 2)
+            particle_size = int(particle['size'] * size_factor * (self.size / 10))
+            
+            # Create a surface with per-pixel alpha for the particle
+            if particle_size > 0:
+                particle_surface = pygame.Surface((particle_size * 2, particle_size * 2), pygame.SRCALPHA)
+                color_with_alpha = particle['color'] + (alpha,)
+                pygame.draw.circle(
+                    particle_surface, 
+                    color_with_alpha, 
+                    (particle_size, particle_size), 
+                    particle_size
+                )
+                surface.blit(
+                    particle_surface, 
+                    (particle_x - particle_size, particle_y - particle_size)
+                )
+        
+        # Draw central glow
+        center_size = int(self.size * (1.0 - progress * 0.8))
+        if center_size > 0:
+            glow_surface = pygame.Surface((center_size * 2, center_size * 2), pygame.SRCALPHA)
+            center_color = self.color + (alpha,)
+            pygame.draw.circle(
+                glow_surface, 
+                center_color, 
+                (center_size, center_size), 
+                center_size
+            )
+            surface.blit(
+                glow_surface,
+                (int(self.x - center_size), int(self.y - center_size))
+            )
+            
+    def is_finished(self):
+        return self.current_frame >= self.max_frames 

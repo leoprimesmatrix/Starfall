@@ -3,7 +3,9 @@ import pygame_gui
 import math
 import random
 from constants import *
-from game_objects import Star, Nebula, PlayerShip, Laser, Enemy, EnemyProjectile, PowerUp, BossEnemy
+from game_objects import Star, Nebula, PlayerShip, Laser, Enemy, EnemyProjectile, PowerUp, BossEnemy, Explosion
+from utils import load_font, get_scale_factor, load_image
+from pygame_gui.elements import UIButton
 
 class PlayingScreen:
     def __init__(self, screen, manager):
@@ -11,6 +13,7 @@ class PlayingScreen:
         self.manager = manager
         self.pause_button = None
         self.is_visible = False
+        self.height = screen.get_height() # Screen height for convenience
 
         # Game objects - initialize empty
         self.player = None
@@ -28,6 +31,11 @@ class PlayingScreen:
         self.power_up_spawn_timer = 0
         self.game_over = False
         self.level_complete_timer = -1 # Timer for showing completion message
+        self.frame_count = 0 # For timing certain effects
+        
+        # Boss Intro State
+        self.show_boss_intro = False
+        self.boss_intro_timer = 0
         
         # Notification system
         self.notification_active = False
@@ -38,6 +46,9 @@ class PlayingScreen:
         # Visual effects
         self.particles = []
         self.explosions = []
+        
+        # Background
+        self.background_image = None # To hold the level-specific background
 
         self.setup_ui() # Create UI elements
         self.hide()  # Hide UI elements initially
@@ -46,6 +57,7 @@ class PlayingScreen:
         """Resets the playing screen state for the current level in game_state."""
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
+        self.height = screen_height # Update height property
 
         self.player = PlayerShip()
         self.player.x = screen_width // 2 # Center player horizontally
@@ -59,10 +71,12 @@ class PlayingScreen:
         self.boss = None
 
         self.score = 0
-        self.enemy_spawn_timer = 0
+        self.enemy_spawn_timer = ENEMY_SPAWN_RATE # Make sure timer is initialized with constant
         self.power_up_spawn_timer = 0
         self.game_over = False
         self.level_complete_timer = -1
+        self.show_boss_intro = False # Reset boss intro flag
+        self.boss_intro_timer = 0
 
         # Set nebula color for the level
         self.nebula.set_color_for_level(game_state.current_level)
@@ -73,6 +87,9 @@ class PlayingScreen:
         # Spawn boss if it's the boss level
         if game_state.is_boss_level():
             self.boss = BossEnemy(screen_width)
+            
+        # Generate procedural background for the level
+        self.background_image = self.generate_background(game_state.current_level, screen_width, screen_height)
 
         self.show() # Make sure UI (like pause button) is visible
 
@@ -90,6 +107,7 @@ class PlayingScreen:
     def setup_ui(self):
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
+        self.height = screen_height # Update height property
         scale = get_scale_factor(screen_width, screen_height)
 
         # Store current visibility state
@@ -136,44 +154,80 @@ class PlayingScreen:
         self.is_visible = False
 
     def draw(self, surface, game_state):
-        # Draw background
-        surface.fill(BLACK) # Fill with black first
+        # Clear the screen with a black background
+        surface.fill(BLACK)
         
-        # Draw nebula
-        self.nebula.draw(surface)
-        
-        # Draw stars
+        # Draw stars in the background
         for star in self.stars:
             star.draw(surface)
         
         # Draw player
         if self.player:
             self.player.draw(surface)
-            
-        # Draw player lasers
-        for laser in self.player_lasers:
-            laser.draw(surface)
-            
+        
         # Draw enemies
         for enemy in self.enemies:
             enemy.draw(surface)
-            
-        # Draw enemy projectiles
-        for projectile in self.enemy_projectiles:
-            projectile.draw(surface)
-            
-        # Draw power-ups
-        for power_up in self.power_ups:
-            power_up.draw(surface)
-            
-        # Draw boss if it exists
+        
+        # Draw boss
         if self.boss:
             self.boss.draw(surface)
+        
+        # Draw projectiles
+        for proj in self.player_lasers:
+            proj.draw(surface)
+        
+        for proj in self.enemy_projectiles:
+            proj.draw(surface)
             
-        # Draw particles and effects
-        self.draw_particles(surface)
+            # Special drawing for mine type projectiles
+            if hasattr(proj, 'proj_type') and proj.proj_type == "mine":
+                # Add spikes to mines
+                for i in range(8):  # 8 spikes around the mine
+                    angle = i * (math.pi/4)
+                    spike_length = 8
+                    end_x = proj.x + math.cos(angle) * spike_length
+                    end_y = proj.y + math.sin(angle) * spike_length
+                    pygame.draw.line(surface, RED, (proj.x, proj.y), (end_x, end_y), 2)
+        
+        # Draw explosions
+        for explosion in self.explosions:
+            explosion.draw(surface)
+        
+        # Draw beam attack if active
+        if self.boss and hasattr(self.boss, 'beam_active') and self.boss.beam_active:
+            # Beam is already drawn in the boss's draw method
+            # Add additional particles along beam path
+            beam_start_x = self.boss.x
+            beam_start_y = self.boss.y + self.boss.height//2 + 20
+            beam_target_x = self.boss.beam_target_x
+            beam_end_y = self.height
             
-        # Draw UI elements
+            # Calculate angle and length for beam
+            angle = math.atan2(beam_end_y - beam_start_y, beam_target_x - beam_start_x)
+            beam_length = math.sqrt((beam_end_y - beam_start_y)**2 + (beam_target_x - beam_start_x)**2)
+            
+            # Add particles along beam
+            num_particles = int(beam_length / 20)  # One particle every 20 pixels
+            for i in range(num_particles):
+                # Calculate position along beam
+                t = i / num_particles
+                particle_x = beam_start_x + t * (beam_target_x - beam_start_x)
+                particle_y = beam_start_y + t * (beam_end_y - beam_start_y)
+                
+                # Random offset perpendicular to beam
+                perpendicular_angle = angle + math.pi/2
+                offset = random.randint(-5, 5)
+                particle_x += math.cos(perpendicular_angle) * offset
+                particle_y += math.sin(perpendicular_angle) * offset
+                
+                # Draw particle
+                size = random.randint(2, 5)
+                color_intensity = random.randint(150, 255)
+                color = (color_intensity, 50, 0)
+                pygame.draw.circle(surface, color, (int(particle_x), int(particle_y)), size)
+        
+        # Draw UI
         screen_width = surface.get_width()
         screen_height = surface.get_height()
         scale = get_scale_factor(screen_width, screen_height)
@@ -213,15 +267,50 @@ class PlayingScreen:
 
         # Draw remaining enemies / Boss Health
         if game_state.is_boss_level() and self.boss:
-            remaining_text_str = f"{self.boss.name} Health: {self.boss.health}/{self.boss.max_health}"
-            remaining_color = RED
+            # Boss health bar instead of text
+            bar_width = int(300 * scale)
+            bar_height = int(20 * scale)
+            # Center the bar horizontally at the top
+            bar_x = (screen_width - bar_width) // 2
+            # Position the bar lower to avoid text collision
+            bar_y = int(80 * scale)  # Increased from 40 to 80
+            
+            # Calculate health percentage and determine color
+            health_percent = self.boss.health / self.boss.max_health
+            if health_percent > 0.6:
+                bar_color = GREEN
+            elif health_percent > 0.3:
+                bar_color = YELLOW
+            else:
+                bar_color = RED
+                
+            # Draw boss name centered above the bar
+            boss_name_font = score_font
+            boss_name_text = boss_name_font.render(f"{self.boss.name}", True, RED)
+            boss_name_rect = boss_name_text.get_rect(midbottom=(bar_x + bar_width // 2, bar_y - int(5 * scale)))
+            surface.blit(boss_name_text, boss_name_rect)
+            
+            # Draw background bar (empty)
+            pygame.draw.rect(surface, DARK_GRAY, (bar_x, bar_y, bar_width, bar_height))
+            
+            # Draw filled portion of the bar
+            filled_width = int(bar_width * health_percent)
+            pygame.draw.rect(surface, bar_color, (bar_x, bar_y, filled_width, bar_height))
+            
+            # Draw border
+            pygame.draw.rect(surface, WHITE, (bar_x, bar_y, bar_width, bar_height), 2)
+            
+            # Optionally show numerical health values
+            health_text = score_font.render(f"{self.boss.health}/{self.boss.max_health}", True, WHITE)
+            health_text_rect = health_text.get_rect(center=(bar_x + bar_width // 2, bar_y + bar_height // 2))
+            surface.blit(health_text, health_text_rect)
         else:
             remaining_text_str = f"Enemies Remaining: {enemies_remaining}"
             remaining_color = WHITE
 
-        remaining_text = score_font.render(remaining_text_str, True, remaining_color)
-        remaining_rect = remaining_text.get_rect(topright=(screen_width - pause_button_area_width, int(20 * scale)))
-        surface.blit(remaining_text, remaining_rect)
+            remaining_text = score_font.render(remaining_text_str, True, remaining_color)
+            remaining_rect = remaining_text.get_rect(topright=(screen_width - pause_button_area_width, int(20 * scale)))
+            surface.blit(remaining_text, remaining_rect)
 
         # Level Completion Message
         if self.level_complete_timer > 0:
@@ -309,9 +398,45 @@ class PlayingScreen:
             game_state.score = self.score # Pass score before changing state
             game_state.change_state(STATE_GAME_OVER)
 
-    def spawn_enemy(self):
+    def spawn_enemy(self, game_state):
         screen_width = self.screen.get_width()
-        enemy_type = random.choices(ENEMY_TYPES, weights=ENEMY_SPAWN_WEIGHTS)[0]
+        
+        # Determine available enemy types based on current level
+        available_types = []
+        available_weights = []
+        
+        # Filter enemy types based on current level using ENEMY_LEVEL_PROGRESSION
+        for enemy_type, min_level in ENEMY_LEVEL_PROGRESSION.items():
+            if game_state.current_level >= min_level:
+                available_types.append(enemy_type)
+                
+                # Add corresponding weight from original weights list
+                if enemy_type in ENEMY_TYPES:
+                    index = ENEMY_TYPES.index(enemy_type)
+                    weight = ENEMY_SPAWN_WEIGHTS[index]
+                    
+                    # Adjust weights based on level progression
+                    # Lower-tier enemies become less common in higher levels
+                    level_difference = game_state.current_level - min_level
+                    if level_difference > 0:
+                        weight = max(0.1, weight - (level_difference * 0.1))
+                        
+                    available_weights.append(weight)
+                else:
+                    available_weights.append(0.1)  # Default weight if not found
+        
+        # If somehow no enemies are available, default to Swarmer
+        if not available_types:
+            available_types = ["Swarmer"]
+            available_weights = [1.0]
+            
+        # Normalize weights to sum to 1
+        weight_sum = sum(available_weights)
+        if weight_sum > 0:
+            available_weights = [w / weight_sum for w in available_weights]
+            
+        # Choose from available enemy types with their weights
+        enemy_type = random.choices(available_types, weights=available_weights)[0]
         x = random.randint(50, screen_width - 50)
         self.enemies.append(Enemy(x, -50, enemy_type))
 
@@ -335,6 +460,9 @@ class PlayingScreen:
                         game_state.change_state(STATE_LEVEL_SELECT)
             return
 
+        # Increment frame counter
+        self.frame_count += 1
+        
         screen_width = self.screen.get_width()
         screen_height = self.screen.get_height()
 
@@ -342,6 +470,15 @@ class PlayingScreen:
         for star in self.stars:
             star.update(screen_width, screen_height)
         self.nebula.update(screen_height)
+
+        # Update explosions
+        for explosion in self.explosions[:]:
+            explosion.update()
+            if explosion.is_finished():
+                self.explosions.remove(explosion)
+                
+        # Handle all projectile collisions and explosions
+        self.handle_projectiles()
 
         # Update notification system
         if game_state.ability_kill_counter >= ABILITY_ENEMY_KILL_THRESHOLD and not self.notification_active:
@@ -404,30 +541,36 @@ class PlayingScreen:
             # Enemy offscreen check
             if enemy.y > screen_height:
                 self.enemies.remove(enemy)
+                # Count enemies that go off-screen as defeated for level progression
+                game_state.record_enemy_defeat()
+                # Check if the level is complete after this enemy goes off-screen
+                if not game_state.is_boss_level() and game_state.check_level_complete():
+                    game_state.complete_current_level()
+                    self.level_complete_timer = 180
         
         # Update boss
         if self.boss:
             self.boss.update()
             
             # Boss shooting patterns
-            if self.boss.shoot_laser_cooldown <= 0:
-                self.boss.shoot_laser_cooldown = BOSS_SHOOT_COOLDOWN_LASER
+            if self.boss.shoot_cooldown_laser <= 0:
+                self.boss.shoot_cooldown_laser = BOSS_SHOOT_COOLDOWN_LASER
                 # Create laser projectiles in a pattern
                 self.create_boss_projectiles()
                 
-            if self.boss.shoot_plasma_cooldown <= 0:
-                self.boss.shoot_plasma_cooldown = BOSS_SHOOT_COOLDOWN_PLASMA
+            if self.boss.shoot_cooldown_plasma <= 0:
+                self.boss.shoot_cooldown_plasma = BOSS_SHOOT_COOLDOWN_PLASMA
                 # Create plasma projectiles in a different pattern
                 self.create_boss_plasma()
                 
-            self.boss.shoot_laser_cooldown -= 1
-            self.boss.shoot_plasma_cooldown -= 1
+            self.boss.shoot_cooldown_laser -= 1
+            self.boss.shoot_cooldown_plasma -= 1
         
         # Spawn enemies according to level
         if not game_state.is_boss_level() and len(self.enemies) < game_state.get_max_enemies() and not game_state.check_level_complete():
             self.enemy_spawn_timer -= 1
             if self.enemy_spawn_timer <= 0:
-                self.spawn_enemy()
+                self.spawn_enemy(game_state)
                 self.enemy_spawn_timer = ENEMY_SPAWN_RATE
         
         # Power-Up Spawning
@@ -452,7 +595,15 @@ class PlayingScreen:
             enemies_remaining = game_state.get_enemies_remaining()
             if enemies_remaining <= 0:  # Spawn boss when regular enemies are cleared
                 self.spawn_boss()
+                self.show_boss_intro = True
+                self.boss_intro_timer = 180 # Show for 3 seconds (60 FPS * 3)
                 
+        # Update boss intro timer
+        if self.show_boss_intro:
+            self.boss_intro_timer -= 1
+            if self.boss_intro_timer <= 0:
+                self.show_boss_intro = False
+        
         # Check collisions
         self.check_collisions(game_state)
         
@@ -468,6 +619,11 @@ class PlayingScreen:
         if color is None:
             color = (255, 150, 50)  # Default orange explosion
             
+        # Create an Explosion object and add it to explosions list
+        explosion = Explosion(x, y, size * 20, duration=30, color=color)
+        self.explosions.append(explosion)
+        
+        # Still create particles for additional effect if wanted
         # Create multiple particles for the explosion
         num_particles = int(20 * size)
         for _ in range(num_particles):
@@ -549,7 +705,8 @@ class PlayingScreen:
             for laser in self.player_lasers[:]:
                 if (abs(laser.x - self.boss.x) < self.boss.width//2 and
                     abs(laser.y - self.boss.y) < self.boss.height//2):
-                    self.boss.health -= laser.damage
+                    # Call take_damage instead of directly modifying health
+                    self.boss.take_damage(laser.damage) 
                     
                     # Create hit effect
                     if ANIMATION_ENABLED:
@@ -565,9 +722,14 @@ class PlayingScreen:
                         # Large explosion for boss defeat
                         self.create_explosion(self.boss.x, self.boss.y, 3.0, (255, 200, 50))
                         self.score += 1000 # Boss bonus score
-                        game_state.complete_current_level()
-                        self.level_complete_timer = 180
-                        self.boss = None
+                        game_state.score = self.score # Update final score in game_state
+                        game_state.boss_defeated = True # Ensure this is set
+                        # Don't complete level here, transition to victory screen
+                        if hasattr(game_state.game, 'change_state_with_transition'):
+                            game_state.game.change_state_with_transition(STATE_VICTORY)
+                        else:
+                            game_state.change_state(STATE_VICTORY)
+                        self.boss = None # Remove boss object
                     
                     if not laser.piercing:
                         break # Laser is gone
@@ -877,3 +1039,287 @@ class PlayingScreen:
             )
             
         return None 
+
+    def generate_background(self, level, width, height):
+        """Generate a procedural background based on the level"""
+        # Create a base surface for the background
+        bg_surface = pygame.Surface((width, height))
+        
+        # Choose color scheme based on level
+        if level == 1:  # Blue nebula theme
+            bg_color = (0, 0, 40)
+            shape_colors = [(20, 40, 100), (30, 60, 120), (40, 80, 150)]
+        elif level == 2:  # Red nebula theme
+            bg_color = (40, 0, 0)
+            shape_colors = [(100, 20, 20), (130, 30, 30), (150, 40, 40)]
+        elif level == 3:  # Green nebula theme
+            bg_color = (0, 30, 0)
+            shape_colors = [(20, 80, 20), (30, 100, 30), (40, 120, 40)]
+        elif level == 4:  # Purple nebula theme
+            bg_color = (30, 0, 30)
+            shape_colors = [(60, 20, 60), (80, 30, 80), (100, 40, 100)]
+        elif level == 5:  # Boss level - dark ominous theme
+            bg_color = (20, 0, 10)
+            shape_colors = [(60, 0, 30), (80, 10, 40), (100, 20, 50)]
+        else:
+            bg_color = (0, 0, 0)
+            shape_colors = [(30, 30, 30), (40, 40, 40), (50, 50, 50)]
+            
+        # Fill background with base color
+        bg_surface.fill(bg_color)
+        
+        # Draw procedural shapes based on level
+        # Level 1: Circles
+        if level == 1:
+            for _ in range(20):
+                x = random.randint(0, width)
+                y = random.randint(0, height)
+                radius = random.randint(50, 200)
+                color = random.choice(shape_colors)
+                # Apply transparency to the circle
+                circle_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                alpha = random.randint(30, 80)
+                pygame.draw.circle(circle_surface, color + (alpha,), (radius, radius), radius)
+                bg_surface.blit(circle_surface, (x - radius, y - radius))
+                
+        # Level 2: Swirls (approximated with circles)
+        elif level == 2:
+            for i in range(5):
+                center_x = random.randint(width // 4, 3 * width // 4)
+                center_y = random.randint(height // 4, 3 * height // 4)
+                max_radius = random.randint(100, 300)
+                color = random.choice(shape_colors)
+                
+                # Create a spiral effect with circles
+                for j in range(15):
+                    angle = j * 0.5
+                    radius = 10 + j * 10
+                    if radius > max_radius:
+                        break
+                    x = center_x + int(math.cos(angle) * radius)
+                    y = center_y + int(math.sin(angle) * radius)
+                    alpha = random.randint(40, 90)
+                    
+                    circle_surface = pygame.Surface((radius, radius), pygame.SRCALPHA)
+                    pygame.draw.circle(circle_surface, color + (alpha,), (radius // 2, radius // 2), radius // 2)
+                    bg_surface.blit(circle_surface, (x - radius // 2, y - radius // 2))
+                    
+        # Level 3: Grid pattern
+        elif level == 3:
+            grid_size = 100
+            line_thickness = 2
+            for x in range(0, width, grid_size):
+                for y in range(0, height, grid_size):
+                    color = random.choice(shape_colors)
+                    alpha = random.randint(20, 60)
+                    pygame.draw.rect(bg_surface, color + (alpha,), 
+                                     pygame.Rect(x, y, grid_size, grid_size), line_thickness)
+                    
+        # Level 4: Diagonal lines
+        elif level == 4:
+            for _ in range(30):
+                start_x = random.randint(-width // 2, width)
+                start_y = random.randint(-height // 2, height)
+                length = random.randint(300, 800)
+                thickness = random.randint(2, 8)
+                color = random.choice(shape_colors)
+                alpha = random.randint(30, 70)
+                
+                end_x = start_x + length
+                end_y = start_y + length
+                
+                line_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                pygame.draw.line(line_surface, color + (alpha,), (start_x, start_y), (end_x, end_y), thickness)
+                bg_surface.blit(line_surface, (0, 0))
+                
+        # Level 5: Boss level - ominous triangles
+        elif level == 5:
+            for _ in range(15):
+                points = []
+                center_x = random.randint(0, width)
+                center_y = random.randint(0, height)
+                
+                # Generate triangle points
+                size = random.randint(100, 350)
+                for i in range(3):
+                    angle = i * (2*math.pi/3) + random.uniform(0, 0.5)
+                    x = center_x + int(math.cos(angle) * size)
+                    y = center_y + int(math.sin(angle) * size)
+                    points.append((x, y))
+                
+                color = random.choice(shape_colors)
+                alpha = random.randint(30, 90)
+                
+                # Draw the triangle with alpha
+                triangle_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                pygame.draw.polygon(triangle_surface, color + (alpha,), points)
+                bg_surface.blit(triangle_surface, (0, 0))
+                
+        return bg_surface 
+
+    def handle_projectiles(self):
+        # Make sure we have a valid height property
+        if not hasattr(self, 'height') or self.height is None:
+            self.height = self.screen.get_height()
+            
+        # Keep track of explosions to add
+        new_explosions = []
+        
+        # Update and check player projectiles
+        for proj in self.player_lasers[:]:
+            proj.update()
+            
+            # Check if hit any enemy
+            for enemy in self.enemies[:]:
+                if self.check_collision(proj, enemy):
+                    # Damage the enemy and remove projectile
+                    enemy.take_damage(proj.damage)
+                    if enemy.health <= 0:
+                        # Create explosion
+                        explosion = Explosion(enemy.x, enemy.y, enemy.width)
+                        new_explosions.append(explosion)
+                        self.enemies.remove(enemy)
+                        # Add to score
+                        self.score += 100
+                    # Create small explosion for projectile
+                    small_explosion = Explosion(proj.x, proj.y, 20)
+                    new_explosions.append(small_explosion)
+                    if proj in self.player_lasers:
+                        self.player_lasers.remove(proj)
+                    break
+            
+            # Check if hit boss
+            if self.boss and self.check_collision(proj, self.boss):
+                # Damage boss
+                self.boss.take_damage(proj.damage)
+                # Create small explosion for projectile
+                explosion = Explosion(proj.x, proj.y, 20)
+                new_explosions.append(explosion)
+                if proj in self.player_lasers:
+                    self.player_lasers.remove(proj)
+            
+            # Remove if off screen
+            if proj.y < 0:
+                if proj in self.player_lasers:
+                    self.player_lasers.remove(proj)
+        
+        # Update and check enemy projectiles
+        for proj in self.enemy_projectiles[:]:
+            proj.update()
+            
+            # Check if hit player
+            if self.player and self.check_collision(proj, self.player) and not self.player.is_invulnerable():
+                # Damage player
+                self.player.take_damage(proj.damage)
+                # Create explosion
+                explosion = Explosion(proj.x, proj.y, 20)
+                new_explosions.append(explosion)
+                # Remove projectile
+                if proj.type == "plasma":
+                    # Plasma has health and can survive hits
+                    proj.take_damage(1)
+                    if proj.health <= 0 and proj in self.enemy_projectiles:
+                        self.enemy_projectiles.remove(proj)
+                elif proj.type == "mine":
+                    # Mines explode on contact creating a larger explosion
+                    big_explosion = Explosion(proj.x, proj.y, 50)
+                    new_explosions.append(big_explosion)
+                    # Extra damage to player from mine explosion
+                    self.player.take_damage(2)
+                    if proj in self.enemy_projectiles:
+                        self.enemy_projectiles.remove(proj)
+                else:
+                    # Regular projectiles are removed on hit
+                    if proj in self.enemy_projectiles:
+                        self.enemy_projectiles.remove(proj)
+            
+            # Special handling for mine projectiles
+            if proj.type == "mine":
+                # Make mines hover in place after reaching a certain Y position
+                if proj.y > self.height * 0.6:
+                    proj.speed = 0
+                    # Mines pulse to alert player
+                    if random.random() < 0.05:  # 5% chance each frame
+                        mine_pulse = Explosion(proj.x, proj.y, 15, duration=20, color=(255, 100, 0))
+                        new_explosions.append(mine_pulse)
+            
+            # Remove if off screen
+            if proj.y > self.height:
+                if proj in self.enemy_projectiles:
+                    self.enemy_projectiles.remove(proj)
+        
+        # Add new explosions
+        self.explosions.extend(new_explosions)
+        
+        # Handle beam attack if boss is active
+        if self.boss and hasattr(self.boss, 'beam_active') and self.boss.beam_active:
+            # Calculate beam path and check for player collision
+            beam_start_x = self.boss.x
+            beam_start_y = self.boss.y + self.boss.height//2 + 20
+            beam_target_x = self.boss.beam_target_x
+            beam_end_y = self.height
+            
+            # Calculate angle of beam in radians
+            angle = math.atan2(beam_end_y - beam_start_y, beam_target_x - beam_start_x)
+            
+            # Check if player is in beam path
+            if self.player and not self.player.is_invulnerable():
+                # Calculate player distance from beam line
+                # Line is from (beam_start_x, beam_start_y) to (beam_target_x, beam_end_y)
+                # Using point-line distance formula
+                x0, y0 = self.player.x, self.player.y
+                x1, y1 = beam_start_x, beam_start_y
+                x2, y2 = beam_target_x, beam_end_y
+                
+                # Distance from point to line calculation
+                numerator = abs((x2-x1)*(y1-y0) - (x1-x0)*(y2-y1))
+                denominator = math.sqrt((x2-x1)**2 + (y2-y1)**2)
+                distance = numerator/denominator if denominator != 0 else float('inf')
+                
+                # If player is close enough to beam and beyond the start point
+                beam_width = 10  # Width of beam for collision
+                player_in_beam_path = distance < (beam_width + self.player.width/2)
+                
+                # Check if player is beyond start point in beam direction
+                player_beyond_start = False
+                if angle < math.pi/2:  # Beam goes right and down
+                    player_beyond_start = (self.player.x > beam_start_x and self.player.y > beam_start_y)
+                else:  # Beam goes left and down
+                    player_beyond_start = (self.player.x < beam_start_x and self.player.y > beam_start_y)
+                
+                if player_in_beam_path and player_beyond_start:
+                    # Player hit by beam, apply damage every few frames
+                    if self.frame_count % 5 == 0:  # Every 5 frames
+                        self.player.take_damage(1)
+                        # Small explosion effect
+                        hit_effect = Explosion(self.player.x, self.player.y, 15, duration=10, color=(255, 50, 0))
+                        self.explosions.append(hit_effect)
+
+    def check_collision(self, proj, obj):
+        """Check if a projectile hits an object"""
+        if isinstance(proj, Laser):
+            if isinstance(obj, Enemy):
+                return (abs(proj.x - obj.x) < obj.width//2 and
+                        abs(proj.y - obj.y) < obj.height//2)
+            elif isinstance(obj, BossEnemy):
+                return (abs(proj.x - obj.x) < obj.width//2 and
+                        abs(proj.y - obj.y) < obj.height//2)
+        elif isinstance(proj, EnemyProjectile):
+            if isinstance(obj, PlayerShip):
+                return (abs(proj.x - obj.x) < obj.width//2 and
+                        abs(proj.y - obj.y) < obj.height//2)
+        return False 
+
+    def spawn_boss(self):
+        """Create the boss enemy for the boss level"""
+        screen_width = self.screen.get_width()
+        self.boss = BossEnemy(screen_width)
+        # Add dramatic effect
+        for _ in range(5):
+            explosion = Explosion(
+                random.randint(0, screen_width),
+                random.randint(0, self.height // 3), 
+                size=random.randint(30, 80),
+                color=(255, 0, 0)
+            )
+            self.explosions.append(explosion) 

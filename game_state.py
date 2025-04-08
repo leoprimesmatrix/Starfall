@@ -4,6 +4,7 @@ from constants import *
 class GameState:
     def __init__(self):
         self.current_state = STATE_TITLE
+        self.previous_state = STATE_TITLE  # Track the previous state
         self.current_level = 1
         self.level_unlocks = {1: True, 2: False, 3: False, 4: False, 5: False}
         self.score = 0
@@ -15,13 +16,16 @@ class GameState:
         self.game = None  # Reference to main game instance, set after initialization
         
     def change_state(self, new_state):
+        # Store previous state before changing
+        self.previous_state = self.current_state
+        
         # Reset level-specific counters when changing state
-        if self.current_state == STATE_PLAYING and new_state not in [STATE_PAUSED, STATE_ABILITY_SELECT]:
+        if self.current_state == STATE_PLAYING and new_state not in [STATE_PAUSED, STATE_ABILITY_SELECT, STATE_DEBUG_MENU]:
             self.enemies_defeated_this_level = 0
             self.ability_kill_counter = 0 # Reset ability counter too
         elif self.current_state == STATE_PAUSED and new_state == STATE_PLAYING:
              pass # Don't reset when resuming
-        elif new_state == STATE_PLAYING and self.current_state != STATE_ABILITY_SELECT: # Don't reset if coming *from* ability select
+        elif new_state == STATE_PLAYING and self.current_state != STATE_ABILITY_SELECT and self.current_state != STATE_DEBUG_MENU: # Don't reset if coming from ability select or debug menu
              self.enemies_defeated_this_level = 0
              self.ability_kill_counter = 0
 
@@ -57,6 +61,12 @@ class GameState:
         self.enemies_defeated_this_level = 0
         self.ability_kill_counter = 0
         self.boss_defeated = False  # Reset boss defeated status
+
+    def reset_for_retry(self):
+        """Resets state needed to retry the current level, keeping the level the same."""
+        self.enemies_defeated_this_level = 0
+        self.ability_kill_counter = 0
+        # Note: Does not reset score or current_level
 
     def get_enemies_remaining(self):
         target = self.enemies_per_level.get(self.current_level, 0)

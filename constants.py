@@ -30,6 +30,7 @@ STATE_GAME_OVER = 4
 STATE_ABILITY_SELECT = 5 # New state
 STATE_DEBUG_MENU = 6 # Debug menu state
 STATE_ENEMY_GALLERY = 7 # Enemy gallery screen
+STATE_VICTORY = 8 # New state for winning the game
 
 # Game settings
 FPS = 60
@@ -72,6 +73,15 @@ ENEMY_SPAWN_RATE = 60  # Frames between spawns
 ENEMY_TYPES = ["Swarmer", "Striker", "Destroyer", "Harvester", "SporeLauncher"]
 ENEMY_SPAWN_WEIGHTS = [0.4, 0.2, 0.1, 0.2, 0.1]  # Probability weights for each type
 
+# Enemy level progression (which level each enemy first appears in)
+ENEMY_LEVEL_PROGRESSION = {
+    "Swarmer": 1,      # Available from level 1
+    "Striker": 2,      # Available from level 2
+    "Harvester": 3,    # Available from level 3
+    "Destroyer": 4,    # Available from level 4
+    "SporeLauncher": 4 # Available from level 4
+}
+
 # Enemy descriptions for the Kryll invasion theme
 ENEMY_DESCRIPTIONS = {
     "Swarmer": "Fast Kryll scout unit designed for overwhelming numbers.",
@@ -95,13 +105,19 @@ POWER_UP_SPAWN_RATE = 300  # Frames between spawns
 POWER_UP_CHANCE = 0.2  # Chance to spawn when enemy is destroyed
 
 # Boss Settings (Level 5)
-BOSS_HEALTH = 150  # Increased from 100 for a more challenging fight
+BOSS_HEALTH = 250  # Increased from 150 for a more challenging multi-phase fight
 BOSS_SPEED = 1
 BOSS_WIDTH = 150
 BOSS_HEIGHT = 100
 BOSS_SHOOT_COOLDOWN_LASER = 90
 BOSS_SHOOT_COOLDOWN_PLASMA = 150
+BOSS_SHOOT_COOLDOWN_SPREAD = 180  # Spread attack cooldown
+BOSS_SHOOT_COOLDOWN_BEAM = 300  # New death beam attack (phase 4)
+BOSS_SHOOT_COOLDOWN_MINES = 240  # New mine deployment (phase 5)
 BOSS_NAME = "Kryll Command Carrier"
+
+# Boss phase health thresholds (percentage of max health)
+BOSS_PHASE_THRESHOLDS = [1.0, 0.8, 0.6, 0.4, 0.2]  # 5 phases at 100%, 80%, 60%, 40%, and 20% health
 
 # Nebula Colors per Level (RGB, alpha added later)
 # Getting progressively more red/brown
