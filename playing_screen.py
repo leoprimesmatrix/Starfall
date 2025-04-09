@@ -505,18 +505,8 @@ class PlayingScreen:
 
         # Update player (Check added for player existence)
         if self.player:
-            # Handle keyboard inputs
-            keys = pygame.key.get_pressed()
-            dx, dy = 0, 0
-            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                dx -= self.player.speed
-            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                dx += self.player.speed
-            if keys[pygame.K_UP] or keys[pygame.K_w]:
-                dy -= self.player.speed
-            if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-                dy += self.player.speed
-            self.player.move(dx, dy, screen_width, screen_height)
+            # Handle player input (movement and shooting)
+            self.handle_player_input(game_state)
             self.player.update()
             
         # Update player lasers
@@ -1333,3 +1323,58 @@ class PlayingScreen:
                 color=(255, 0, 0)
             )
             self.explosions.append(explosion) 
+
+    def handle_player_input(self, game_state):
+        """Handle player ship movement and firing."""
+        if not self.player:
+            return
+            
+        # Get pressed keys
+        keys = pygame.key.get_pressed()
+        
+        # Get screen dimensions
+        screen_width = self.screen.get_width()
+        screen_height = self.screen.get_height()
+        
+        # Handle movement with either WASD or Arrow keys
+        dx, dy = 0, 0
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            dx -= self.player.speed
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            dx += self.player.speed
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            dy -= self.player.speed
+        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            dy += self.player.speed
+            
+        # Move the player
+        self.player.move(dx, dy, screen_width, screen_height)
+            
+        # Check for rapid fire debug mode - only when DEBUG_MODE is enabled
+        if DEBUG_MODE and hasattr(game_state.game, 'debug_menu') and game_state.game.debug_menu.rapid_fire and keys[pygame.K_SPACE]:
+            # Extreme rapid fire - shoot multiple bullets per frame when holding space
+            # This simulates around 10 bullets per second (at 60 FPS)
+            for _ in range(3):  # Shoot 3 bullets each frame (3 * 60 FPS / 20 frames = ~9 bullets per second)
+                self.fire_player_laser(game_state.game)
+                # Reset the cooldown immediately to allow multiple shots
+                if self.player:
+                    self.player.shoot_cooldown = 0
+        else:
+            # Normal firing with spacebar (with cooldown)
+            if keys[pygame.K_SPACE] and self.player.shoot_cooldown <= 0:
+                self.fire_player_laser(game_state.game)
+                
+        # Handle special ability with O key
+        if keys[pygame.K_o] and self.player.ability_meter >= self.player.ability_meter_max:
+            self.activate_player_ability(game_state)
+            
+    def fire_player_laser(self, game):
+        """Create laser projectiles from the player's ship"""
+        if not self.player:
+            return
+            
+        # Get lasers from player's shoot method
+        new_lasers = self.player.shoot()
+        if new_lasers:  # Only play sound if lasers were actually created
+            pygame.mixer.Sound.play(game.shoot_sound)
+            self.player_lasers.extend(new_lasers) 
