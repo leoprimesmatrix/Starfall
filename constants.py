@@ -176,7 +176,9 @@ PAUSE_BUTTON_HEIGHT = 40
 PAUSE_BUTTON_MARGIN = 20
 
 # Debug settings
-DEBUG_MODE = True # Set to False to disable debug features in production
+# Set DEBUG_MODE to True to enable debug features (e.g., debug menu, rapid fire)
+# Set DEBUG_MODE to False for release builds
+DEBUG_MODE = True # Set to True for the develop branch
 
 # Animation and transition settings
 FADE_DURATION = 30  # Frames for fade transitions
