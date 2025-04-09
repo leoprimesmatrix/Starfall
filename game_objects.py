@@ -120,7 +120,7 @@ class PlayerShip:
             self.has_shield = False # Shield absorbs one hit
             self.active_ability = None # Deactivate shield ability
             # Add visual/sound effect for shield break here
-            return
+            return False
 
         # Then check regular shield health
         if self.shield > 0:
@@ -128,7 +128,7 @@ class PlayerShip:
             if amount <= self.shield:
                 self.shield -= amount
                 # Add visual/sound effect for shield damage here
-                return
+                return False
             else:
                 # Damage exceeds shield, shield is depleted
                 # and remaining damage goes to health
@@ -137,12 +137,15 @@ class PlayerShip:
                 self.health -= remaining_damage
                 self.damage_flash_timer = 10  # Flash for 10 frames
                 # Add visual/sound effect for shield break here
-                return
+                return self.health <= 0
 
         # No shield, damage goes directly to health
         self.health -= amount
         self.damage_flash_timer = 10  # Flash for 10 frames
         # Add visual/sound effect for taking damage here
+        
+        # Return True if player is killed (health depleted), False otherwise
+        return self.health <= 0
         
     def update(self):
         # Cooldowns
