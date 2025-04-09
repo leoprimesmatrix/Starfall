@@ -12,6 +12,7 @@ class DebugMenu:
         self.unlock_all_button = None
         self.mute_button = None
         self.close_button = None
+        self.rapid_fire_button = None
         self.title_text = None
         self.title_rect = None
         self.overlay = None
@@ -20,6 +21,7 @@ class DebugMenu:
         
         # Debug state
         self.muted = False
+        self.rapid_fire = False
         
     def setup_ui(self):
         screen_width = self.screen.get_width()
@@ -40,6 +42,8 @@ class DebugMenu:
             self.mute_button.kill()
         if self.close_button:
             self.close_button.kill()
+        if self.rapid_fire_button:
+            self.rapid_fire_button.kill()
         
         # Calculate scaled dimensions
         button_width = int(BUTTON_WIDTH * scale)
@@ -88,6 +92,16 @@ class DebugMenu:
             manager=self.manager
         )
         
+        # Rapid Fire button
+        y_position += button_height + button_spacing
+        self.rapid_fire_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(center_x - button_width // 2,
+                                     y_position,
+                                     button_width, button_height),
+            text='Toggle Rapid Fire',
+            manager=self.manager
+        )
+        
         # Mute button
         y_position += button_height + button_spacing
         self.mute_button = pygame_gui.elements.UIButton(
@@ -128,6 +142,8 @@ class DebugMenu:
             self.unlock_all_button.show()
         if self.mute_button:
             self.mute_button.show()
+        if self.rapid_fire_button:
+            self.rapid_fire_button.show()
         if self.close_button:
             self.close_button.show()
         self.is_visible = True
@@ -141,6 +157,8 @@ class DebugMenu:
             self.unlock_all_button.hide()
         if self.mute_button:
             self.mute_button.hide()
+        if self.rapid_fire_button:
+            self.rapid_fire_button.hide()
         if self.close_button:
             self.close_button.hide()
         self.is_visible = False
@@ -177,6 +195,15 @@ class DebugMenu:
             elif event.ui_element == self.unlock_all_button:
                 for level in range(1, 6):  # Levels 1-5
                     game_state.unlock_level(level)
+                    
+            # Toggle rapid fire
+            elif event.ui_element == self.rapid_fire_button:
+                self.rapid_fire = not self.rapid_fire
+                # Update button text
+                if self.rapid_fire:
+                    self.rapid_fire_button.set_text("Disable Rapid Fire")
+                else:
+                    self.rapid_fire_button.set_text("Enable Rapid Fire")
                     
             # Toggle mute
             elif event.ui_element == self.mute_button:
