@@ -30,6 +30,10 @@ class TitleScreen:
         self.debug_hint_text = None
         self.debug_hint_rect = None
         
+        # Version text
+        self.version_text = None
+        self.version_rect = None
+        
         self.setup_stars()
         self.setup_ui()
         self.hide() # Hide UI elements initially
@@ -140,6 +144,12 @@ class TitleScreen:
         else:
             self.debug_hint_text = None
             self.debug_hint_rect = None
+            
+        # Version text in bottom left corner
+        version_font_size = int(16 * scale)
+        version_font = load_font(version_font_size)
+        self.version_text = version_font.render("Release Version 1.0.0", True, GRAY)
+        self.version_rect = self.version_text.get_rect(bottomleft=(int(10 * scale), screen_height - int(10 * scale)))
         
         # Setup star animations again for the new size
         self.setup_stars()
@@ -241,6 +251,10 @@ class TitleScreen:
         # Draw debug hint if enabled
         if self.debug_hint_text and DEBUG_MODE:
             surface.blit(self.debug_hint_text, self.debug_hint_rect)
+            
+        # Draw version text
+        if self.version_text:
+            surface.blit(self.version_text, self.version_rect)
 
     def handle_event(self, event, game_state):
         if not self.is_visible:
