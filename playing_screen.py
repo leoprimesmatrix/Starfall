@@ -157,6 +157,20 @@ class PlayingScreen:
         # Clear the screen with a black background
         surface.fill(BLACK)
         
+        # Draw nebula (if used instead of background image)
+        # self.nebula.draw(surface)
+        
+        # --- Add Red Tint Based on Player Health --- 
+        if self.player and self.player.health < self.player.max_health:
+            health_percentage = max(0, self.player.health / self.player.max_health)
+            # Alpha increases as health decreases (max alpha around 120 for visibility)
+            alpha = int((1 - health_percentage) * 120) 
+            if alpha > 0:
+                red_tint_surface = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+                red_tint_surface.fill((255, 0, 0, alpha))
+                surface.blit(red_tint_surface, (0, 0))
+        # --- End of Red Tint --- 
+
         # Draw stars in the background
         for star in self.stars:
             star.draw(surface)
@@ -232,23 +246,24 @@ class PlayingScreen:
         screen_height = surface.get_height()
         scale = get_scale_factor(screen_width, screen_height)
         
-        # Draw score in top-left
-        score_font_size = int(24 * scale)
-        score_font = load_font(score_font_size)
-        score_text = score_font.render(f"Score: {self.score}", True, WHITE)
-        score_rect = score_text.get_rect(topleft=(int(20 * scale), int(20 * scale)))
-        surface.blit(score_text, score_rect)
-        
-        # Get pause button area to avoid text overlap
-        pause_button_area_width = self.pause_button.relative_rect.width + int(40 * scale)
-        
-        # Draw current mission name
+        # Draw current mission name - center at the very top
         mission_font_size = int(20 * scale)
         mission_font = load_font(mission_font_size)
         mission_name = f"Mission: {game_state.current_level} - {list(MISSION_DESCRIPTIONS.values())[game_state.current_level-1].split('.')[0]}"
         mission_text = mission_font.render(mission_name, True, LIGHT_GRAY)
         mission_rect = mission_text.get_rect(midtop=(screen_width // 2, int(10 * scale)))
         surface.blit(mission_text, mission_rect)
+
+        # Draw score in top-left (but below mission text)
+        score_font_size = int(24 * scale)
+        score_font = load_font(score_font_size)
+        score_text = score_font.render(f"Score: {self.score}", True, WHITE)
+        score_rect = score_text.get_rect(topleft=(int(20 * scale), int(40 * scale)))
+        # Score text is now invisible but still calculated for future use
+        # surface.blit(score_text, score_rect)
+        
+        # Get pause button area to avoid text overlap
+        pause_button_area_width = self.pause_button.relative_rect.width + int(40 * scale)
         
         # Draw ship info if player exists
         if self.player:
@@ -258,22 +273,14 @@ class PlayingScreen:
             ship_rect = ship_text.get_rect(midbottom=(screen_width // 2, screen_height - int(10 * scale)))
             surface.blit(ship_text, ship_rect)
         
-        # Draw remaining enemies
-        if game_state.is_boss_level():
-            remaining_text = score_font.render(f"Defeat the {self.boss.name if self.boss else BOSS_NAME}", True, YELLOW)
-        else:
-            enemies_remaining = game_state.get_enemies_remaining()
-            remaining_text = score_font.render(f"Kryll Forces: {enemies_remaining}", True, YELLOW)
-
         # Draw remaining enemies / Boss Health
         if game_state.is_boss_level() and self.boss:
             # Boss health bar instead of text
             bar_width = int(300 * scale)
             bar_height = int(20 * scale)
-            # Center the bar horizontally at the top
             bar_x = (screen_width - bar_width) // 2
-            # Position the bar lower to avoid text collision
-            bar_y = int(80 * scale)  # Increased from 40 to 80
+            # Position boss health bar below mission name
+            bar_y = int(120 * scale) 
             
             # Calculate health percentage and determine color
             health_percent = self.boss.health / self.boss.max_health
@@ -287,6 +294,7 @@ class PlayingScreen:
             # Draw boss name centered above the bar
             boss_name_font = score_font
             boss_name_text = boss_name_font.render(f"{self.boss.name}", True, RED)
+            # Position boss name above health bar
             boss_name_rect = boss_name_text.get_rect(midbottom=(bar_x + bar_width // 2, bar_y - int(5 * scale)))
             surface.blit(boss_name_text, boss_name_rect)
             
@@ -305,11 +313,12 @@ class PlayingScreen:
             health_text_rect = health_text.get_rect(center=(bar_x + bar_width // 2, bar_y + bar_height // 2))
             surface.blit(health_text, health_text_rect)
         else:
+            # Non-boss levels: Draw Enemies Remaining text in top-right
+            enemies_remaining = game_state.get_enemies_remaining()
             remaining_text_str = f"Enemies Remaining: {enemies_remaining}"
             remaining_color = WHITE
-
             remaining_text = score_font.render(remaining_text_str, True, remaining_color)
-            remaining_rect = remaining_text.get_rect(topright=(screen_width - pause_button_area_width, int(20 * scale)))
+            remaining_rect = remaining_text.get_rect(topright=(screen_width - pause_button_area_width, int(40 * scale)))
             surface.blit(remaining_text, remaining_rect)
 
         # Level Completion Message
@@ -371,7 +380,7 @@ class PlayingScreen:
                 notification_font = load_font(notification_font_size)
                 self.notification_text = notification_font.render("Systems Override Ready! (Press O)", True, YELLOW)
                 self.notification_rect = self.notification_text.get_rect(
-                    topright=(screen_width - int(20 * scale), int(60 * scale)))
+                    topright=(screen_width - int(20 * scale), int(70 * scale)))
             
             # Create a copy with adjusted alpha
             text_surface = self.notification_text.copy()
@@ -392,8 +401,8 @@ class PlayingScreen:
             surface.blit(glow_surface, glow_rect)
             surface.blit(text_surface, self.notification_rect)
 
-        # Handle game over state (Check added for player existence)
-        if self.game_over and self.player and self.player.health <= 0:
+        # Handle game over state - Simplified check
+        if self.game_over:
             self.hide()  # Hide pause button
             game_state.score = self.score # Pass score before changing state
             game_state.change_state(STATE_GAME_OVER)
@@ -541,12 +550,6 @@ class PlayingScreen:
             # Enemy offscreen check
             if enemy.y > screen_height:
                 self.enemies.remove(enemy)
-                # Count enemies that go off-screen as defeated for level progression
-                game_state.record_enemy_defeat()
-                # Check if the level is complete after this enemy goes off-screen
-                if not game_state.is_boss_level() and game_state.check_level_complete():
-                    game_state.complete_current_level()
-                    self.level_complete_timer = 180
         
         # Update boss
         if self.boss:
@@ -739,7 +742,9 @@ class PlayingScreen:
             for enemy in self.enemies[:]:
                 if (abs(laser.x - enemy.x) < enemy.width//2 and
                     abs(laser.y - enemy.y) < enemy.height//2):
-                    enemy.health -= laser.damage
+                    
+                    # Call take_damage and check if enemy was killed
+                    enemy_killed = enemy.take_damage(laser.damage)
                     
                     # Create small hit effect
                     if ANIMATION_ENABLED:
@@ -753,7 +758,8 @@ class PlayingScreen:
                         except ValueError: 
                             pass # Already removed
                     
-                    if enemy.health <= 0:
+                    # Only record defeat if enemy was actually killed by laser
+                    if enemy_killed:
                         # Create explosion effect for enemy defeat
                         self.create_explosion(enemy.x, enemy.y, 1.0)
                         self.enemies.remove(enemy)
@@ -806,33 +812,22 @@ class PlayingScreen:
             for projectile in self.enemy_projectiles[:]:
                 if (abs(projectile.x - self.player.x) < self.player.width//2 and
                     abs(projectile.y - self.player.y) < self.player.height//2):
-                    self.player.take_damage(projectile.damage)
+                    
+                    # Check if the hit depletes health
+                    player_killed = self.player.take_damage(projectile.damage)
                     
                     # Create hit effect on player
                     if ANIMATION_ENABLED:
                         self.create_explosion(projectile.x, projectile.y, 0.7, (255, 50, 50))
                     
                     self.enemy_projectiles.remove(projectile)
-                    if self.player.health <= 0:
+                    
+                    # Set game_over flag if player health depleted
+                    if player_killed:
                         self.game_over = True
                         # Create large explosion for player defeat
                         if ANIMATION_ENABLED:
                             self.create_explosion(self.player.x, self.player.y, 2.0, (255, 100, 100))
-                    break
-
-        # Power-ups with player
-        if self.player:
-            for power_up in self.power_ups[:]:
-                if (abs(power_up.x - self.player.x) < self.player.width//2 and
-                    abs(power_up.y - self.player.y) < self.player.height//2):
-                    self.player.power_up_active = True
-                    self.player.power_up_timer = POWER_UP_DURATION
-                    
-                    # Create pickup effect
-                    if ANIMATION_ENABLED:
-                        self.create_explosion(power_up.x, power_up.y, 1.0, (200, 255, 200))
-                    
-                    self.power_ups.remove(power_up)
                     break
 
         # Enemies with player
@@ -840,7 +835,9 @@ class PlayingScreen:
             for enemy in self.enemies[:]:
                 if (abs(enemy.x - self.player.x) < (enemy.width + self.player.width)//2 and
                     abs(enemy.y - self.player.y) < (enemy.height + self.player.height)//2):
-                    self.player.take_damage(1)
+                    
+                    # Check if the hit depletes health
+                    player_killed = self.player.take_damage(1) # Enemy collision damage
                     
                     # Create collision effect
                     if ANIMATION_ENABLED:
@@ -851,19 +848,31 @@ class PlayingScreen:
                             (255, 150, 150)
                         )
                     
-                    self.enemies.remove(enemy)
-                    if self.player.health <= 0:
+                    # Remove the enemy that collided
+                    self.enemies.remove(enemy) 
+                    
+                    # Record defeat when enemy collides with player
+                    game_state.record_enemy_defeat()
+                    # Check for level completion after this defeat
+                    if not game_state.is_boss_level() and game_state.check_level_complete():
+                        game_state.complete_current_level()
+                        self.level_complete_timer = 180
+                    
+                    # Set game_over flag if player health depleted
+                    if player_killed:
                         self.game_over = True
                         # Create large explosion for player defeat
                         if ANIMATION_ENABLED:
                             self.create_explosion(self.player.x, self.player.y, 2.0, (255, 100, 100))
-                    break
+                    break # Enemy hit player, stop checking this enemy
                     
         # Boss with player
         if self.player and self.boss:
             if (abs(self.boss.x - self.player.x) < (self.boss.width + self.player.width)//2 and
                 abs(self.boss.y - self.player.y) < (self.boss.height + self.player.height)//2):
-                self.player.take_damage(3) # Boss collision is more damaging
+                
+                # Check if the hit depletes health
+                player_killed = self.player.take_damage(3) # Boss collision damage
                 
                 # Create heavy collision effect
                 if ANIMATION_ENABLED:
@@ -874,7 +883,8 @@ class PlayingScreen:
                         (255, 100, 50)
                     )
                 
-                if self.player.health <= 0:
+                # Set game_over flag if player health depleted
+                if player_killed:
                     self.game_over = True
                     # Create large explosion for player defeat
                     if ANIMATION_ENABLED:
