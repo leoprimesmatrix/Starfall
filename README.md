@@ -1,10 +1,11 @@
 # STARFALL: THE KRYLL INVASION
 
 ## Overview
-Starfall is a vertical space shooter where you defend the outer colonies of the Galactic Federation against the sudden and overwhelming Kryll invasion. As a newly commissioned pilot thrust into chaos, your mission is to fight back against various enemy types and prevent the Kryll from establishing a foothold in Federation space.
+Coming back from the age of the series "Space Shooter" from Scratch on PrimeDev Studios, the story picks up from "Space Shooter 4: One Final Adventure."
+Starfall is a vertical space shooter where you defend the outer colonies from a new never heard before invasion, the "Kryll." As a newly commissioned pilot thrust into chaos, your mission is to fight back against various enemy types and prevent the Kryll from establishing a foothold in Federation space.
 
 ## Story
-The Kryll arrive without warning, launching devastating attacks on the outer colonies. As casualties mount and systems fall, you are one of the few pilots available to defend what remains. Your immediate focus is on protecting civilian populations, understanding the enemy, and learning to fight back effectively. 
+After the great defeat of the final Ultra Ship from "Space Shooter 4: One Final Adventure," and peace established on the galaxy. A new era begins. When one story ends, another one begins. The Kryll arrive without warning, launching devastating attacks on the outer colonies. As casualties mount and systems fall, you are one of the few pilots available to defend what remains. Your immediate focus is on protecting civilian populations, understanding the enemy, and learning to fight back effectively. 
 
 Each mission represents a critical battle in the early days of the invasion, culminating in a significant victory that pushes back the first wave. But this is just the beginning - the main Kryll invasion force is still out there, regrouping for their next assault.
 
@@ -13,9 +14,7 @@ Each mission represents a critical battle in the early days of the invasion, cul
 - **5 Challenging missions**: Each with unique objectives and increasing difficulty
 - **Diverse enemy types**: Face Swarmers, Strikers, Destroyers, Harvesters, and SporeLaunchers
 - **Epic boss battle**: Confront the massive Kryll command ship in the final mission
-- **Power-up system**: Collect enhancements to boost your ship's capabilities
 - **Special abilities**: Charge your Systems Override to unleash devastating attacks
-- **Dynamic backgrounds**: Each mission features a unique procedurally generated backdrop
 
 ## Controls
 - **Arrow keys/WASD**: Move your ship
@@ -38,4 +37,4 @@ Each mission represents a critical battle in the early days of the invasion, cul
 ## Credits
 Developed as part of the Starfall project. All rights reserved.
 
-*"The Kryll threat is only beginning. The Federation needs pilots like you. Will you answer the call?"*
+*This is just the beginning of a new brink of war.*
